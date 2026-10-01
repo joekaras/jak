@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Modern DateTimePicker - Zero NuGet Dependency</title>
+    <!-- Bootstrap 5 CSS -->
+    <link rel="stylesheet" href="Content/bootstrap.min.css">
+    <!-- DateTimePicker CSS -->
+    <link rel="stylesheet" href="Content/bootstrap-datetimepicker.css">
+    <style>
+        body {
+            background-color: #f8f9fa;
+        }
+        .demo-card {
+            border-radius: 0.75rem;
+            box-shadow: 0 0.25rem 0.75rem rgba(0,0,0,0.05);
+            background: #ffffff;
+            margin-bottom: 1.5rem;
+        }
+        .event-log {
+            background-color: #1e1e1e;
+            color: #d4d4d4;
+            font-family: Consolas, monospace;
+            font-size: 0.85rem;
+            height: 220px;
+            overflow-y: auto;
+            border-radius: 0.5rem;
+            padding: 0.75rem;
+        }
+        .badge-method {
+            background-color: #0d6efd;
+            color: #fff;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body class="py-4">
+    <div class="container">
+        <!-- Header -->
+        <header class="pb-3 mb-4 border-bottom">
+            <div class="d-flex align-items-center justify-content-between">
+                <div>
+                    <h1 class="h2 fw-bold text-primary mb-1">Modern DatePicker & DateTimePicker</h1>
+                    <p class="text-muted mb-0">Self-contained component replacing NuGet package <code>Bootstrap.v3.Datetimepicker.CSS</code>. Fully compatible with Bootstrap 5, jQuery, and Vanilla JS. <a href="playground.html">Try any option combination in the playground.</a></p>
+                </div>
+                <span class="badge bg-success p-2 fs-6">No NuGet Required</span>
+            </div>
+        </header>
+
+        <div class="row">
+            <!-- Left Column: Examples -->
+            <div class="col-lg-7">
+                <!-- Example 1: Basic Date Picker -->
+                <div class="card demo-card">
+                    <div class="card-body">
+                        <h5 class="card-title fw-bold">1. Standard Date Picker</h5>
+                        <p class="text-muted small">Standard date picker with format <code>YYYY-MM-DD</code> and calendar icon.</p>
+                        <div class="row align-items-center g-2">
+                            <div class="col-md-8">
+                                <div class="input-group date" id="picker-date">
+                                    <input type="text" class="form-control" placeholder="Select date..." id="input-date">
+                                    <span class="input-group-text">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M3.5 0a.5.5 0 0 1 .5.5V1h8V.5a.5.5 0 0 1 1 0V1h1a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V3a2 2 0 0 1 2-2h1V.5a.5.5 0 0 1 .5-.5zM1 4v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V4H1z"/></svg>
+                                    </span>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <button type="button" class="btn btn-outline-primary btn-sm w-100" id="btn-today-1">Set to Today</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Example 2: Date & Time Picker -->
+                <div class="card demo-card">
+                    <div class="card-body">
+                        <h5 class="card-title fw-bold">2. Date & Time Picker</h5>
+                        <p class="text-muted small">Combined Date and Time picker with toolbar buttons (Today, Clear, Close) and <code>YYYY-MM-DD HH:mm</code> format.</p>
+                        <div class="input-group date" id="picker-datetime">
+                            <input type="text" class="form-control" placeholder="Select date and time..." id="input-datetime">
+                            <span class="input-group-text">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M8 3.5a.5.5 0 0 0-1 0V9a.5.5 0 0 0 .252.434l3.5 2a.5.5 0 0 0 .496-.868L8 8.71V3.5z"/><path d="M8 16A8 8 0 1 0 8 0a8 8 0 0 0 0 16zm7-8A7 7 0 1 1 1 8a7 7 0 0 1 14 0z"/></svg>
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Example 3: Time Only Picker -->
+                <div class="card demo-card">
+                    <div class="card-body">
+                        <h5 class="card-title fw-bold">3. Time Only Picker</h5>
+                        <p class="text-muted small">12-hour clock with AM/PM toggle using format <code>hh:mm A</code>.</p>
+                        <div class="input-group date" id="picker-time">
+                            <input type="text" class="form-control" placeholder="Select time..." id="input-time">
+                            <span class="input-group-text">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M8 3.5a.5.5 0 0 0-1 0V9a.5.5 0 0 0 .252.434l3.5 2a.5.5 0 0 0 .496-.868L8 8.71V3.5z"/><path d="M8 16A8 8 0 1 0 8 0a8 8 0 0 0 0 16zm7-8A7 7 0 1 1 1 8a7 7 0 0 1 14 0z"/></svg>
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Example 4: Constraints (Min/Max, Disabled Weekends) -->
+                <div class="card demo-card">
+                    <div class="card-body">
+                        <h5 class="card-title fw-bold">4. Constraints: Min/Max & Disabled Weekends</h5>
+                        <p class="text-muted small">Only weekdays selectable, bounded between 10 days ago and 30 days from now.</p>
+                        <div class="input-group date" id="picker-constrained">
+                            <input type="text" class="form-control" placeholder="Select valid weekday..." id="input-constrained">
+                            <span class="input-group-text">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M3.5 0a.5.5 0 0 1 .5.5V1h8V.5a.5.5 0 0 1 1 0V1h1a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V3a2 2 0 0 1 2-2h1V.5a.5.5 0 0 1 .5-.5zM1 4v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V4H1z"/></svg>
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Example 5: Vanilla JavaScript Usage -->
+                <div class="card demo-card">
+                    <div class="card-body">
+                        <h5 class="card-title fw-bold">5. Vanilla JavaScript (No jQuery Required)</h5>
+                        <p class="text-muted small">Instantiated via <code>new DateTimePicker(el, options)</code>.</p>
+                        <div class="input-group" id="picker-vanilla">
+                            <input type="text" class="form-control" placeholder="Vanilla JS picker..." id="input-vanilla">
+                            <span class="input-group-text">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M3.5 0a.5.5 0 0 1 .5.5V1h8V.5a.5.5 0 0 1 1 0V1h1a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V3a2 2 0 0 1 2-2h1V.5a.5.5 0 0 1 .5-.5zM1 4v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V4H1z"/></svg>
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Column: Inline Picker & Controls & Logs -->
+            <div class="col-lg-5">
+                <!-- Inline Calendar Card -->
+                <div class="card demo-card">
+                    <div class="card-body text-center">
+                        <h5 class="card-title fw-bold text-start">6. Inline Calendar</h5>
+                        <p class="text-muted small text-start">Always-visible calendar widget (<code>inline: true</code>).</p>
+                        <div id="picker-inline" class="d-flex justify-content-center"></div>
+                        <div class="mt-2 text-start small">
+                            <strong>Selected Date:</strong> <span id="inline-selected-label" class="badge bg-primary">Today</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Interactive API Controls -->
+                <div class="card demo-card">
+                    <div class="card-body">
+                        <h5 class="card-title fw-bold">Interactive API Methods</h5>
+                        <p class="text-muted small">Test methods on Example 1 (Standard Date Picker):</p>
+                        <div class="d-flex flex-wrap gap-2">
+                            <button class="btn btn-outline-secondary btn-sm" id="btn-show"><span class="badge-method">.show()</span></button>
+                            <button class="btn btn-outline-secondary btn-sm" id="btn-hide"><span class="badge-method">.hide()</span></button>
+                            <button class="btn btn-outline-secondary btn-sm" id="btn-clear"><span class="badge-method">.clear()</span></button>
+                            <button class="btn btn-outline-secondary btn-sm" id="btn-disable"><span class="badge-method">.disable()</span></button>
+                            <button class="btn btn-outline-secondary btn-sm" id="btn-enable"><span class="badge-method">.enable()</span></button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Live Event Log -->
+                <div class="card demo-card">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h5 class="card-title fw-bold mb-0">Event Log</h5>
+                            <button class="btn btn-outline-secondary btn-sm" id="btn-clear-log">Clear Log</button>
+                        </div>
+                        <div class="event-log" id="event-log">
+                            <div>[Ready] DateTimePicker initialized. Listening to dp.* events...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts: jQuery and Bootstrap -->
+    <script src="Scripts/jquery-3.7.1.min.js"></script>
+    <script src="Scripts/bootstrap.bundle.min.js"></script>
+    <!-- Modern DateTimePicker (Zero NuGet Dependency) -->
+    <script src="Scripts/bootstrap-datetimepicker.js"></script>
+
+    <script>
+        $(document).ready(function () {
+            function log(msg) {
+                var now = new Date().toTimeString().split(' ')[0];
+                var $log = $('#event-log');
+                $log.append($('<div>').text('[' + now + '] ' + msg));
+                $log.scrollTop($log[0].scrollHeight);
+            }
+
+            // 1. Standard Date Picker
+            var $dp1 = $('#picker-date').datetimepicker({
+                format: 'YYYY-MM-DD',
+                showTodayButton: true,
+                showClear: true
+            });
+            $dp1.on('dp.change', function (e) {
+                log('Picker 1 dp.change: ' + (e.date ? e.date.toLocaleDateString('en-CA') : 'null'));
+            });
+            $dp1.on('dp.show', function () { log('Picker 1 dp.show'); });
+            $dp1.on('dp.hide', function () { log('Picker 1 dp.hide'); });
+
+            $('#btn-today-1').on('click', function () {
+                $dp1.data('DateTimePicker').date(new Date());
+            });
+
+            // 2. Date & Time Picker
+            var $dp2 = $('#picker-datetime').datetimepicker({
+                format: 'YYYY-MM-DD HH:mm',
+                showTodayButton: true,
+                showClear: true,
+                showClose: true,
+                stepping: 5
+            });
+            $dp2.on('dp.change', function (e) {
+                log('Picker 2 (DateTime) dp.change: ' + $('#input-datetime').val());
+            });
+
+            // 3. Time Only Picker
+            var $dp3 = $('#picker-time').datetimepicker({
+                format: 'hh:mm A',
+                stepping: 15
+            });
+            $dp3.on('dp.change', function (e) {
+                log('Picker 3 (Time) dp.change: ' + $('#input-time').val());
+            });
+
+            // 4. Constraints Picker (Min/Max and Disabled Weekends)
+            var today = new Date();
+            var minD = new Date(today.getTime() - 10 * 86400000);
+            var maxD = new Date(today.getTime() + 30 * 86400000);
+            $('#picker-constrained').datetimepicker({
+                format: 'YYYY-MM-DD',
+                minDate: minD,
+                maxDate: maxD,
+                daysOfWeekDisabled: [0, 6] // Disable Sun, Sat
+            });
+
+            // 5. Vanilla JS Picker
+            var vanillaEl = document.getElementById('picker-vanilla');
+            var vanillaPicker = new DateTimePicker(vanillaEl, {
+                format: 'MM/DD/YYYY'
+            });
+            vanillaEl.addEventListener('dp.change', function (e) {
+                log('Picker 5 (Vanilla) dp.change: ' + document.getElementById('input-vanilla').value);
+            });
+
+            // 6. Inline Calendar
+            var $dpInline = $('#picker-inline').datetimepicker({
+                inline: true,
+                format: 'YYYY-MM-DD'
+            });
+            $dpInline.on('dp.change', function (e) {
+                var dVal = e.date ? e.date.toLocaleDateString('en-CA') : 'None';
+                $('#inline-selected-label').text(dVal);
+                log('Inline Picker dp.change: ' + dVal);
+            });
+
+            // Interactive Method Buttons
+            $('#btn-show').on('click', function () { $dp1.data('DateTimePicker').show(); });
+            $('#btn-hide').on('click', function () { $dp1.data('DateTimePicker').hide(); });
+            $('#btn-clear').on('click', function () { $dp1.data('DateTimePicker').clear(); });
+            $('#btn-disable').on('click', function () { $dp1.data('DateTimePicker').disable(); });
+            $('#btn-enable').on('click', function () { $dp1.data('DateTimePicker').enable(); });
+            $('#btn-clear-log').on('click', function () { $('#event-log').empty(); });
+        });
+    </script>
+</body>
+</html>
