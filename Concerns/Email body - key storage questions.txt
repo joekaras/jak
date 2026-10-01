@@ -1,0 +1,46 @@
+To: Information Security (key management), IBSMAS Platform/Ops, BOE platform owner, DBA lead
+Cc: Mythos remediation owners (bulkdecryption, bic-sso, businessobjects-config, reportscheduler-monitor-config, UserMaintenance)
+Subject: Asset 9946 Mythos remediation: decisions needed on secret store, keystores, and rotation owners
+
+Hi all,
+
+The Asset 9946 Mythos fixes move hardcoded keys, keystore passwords, and DB credentials out of source. Each fix currently assumes an "approved secret store", but none is named. I have drafted a standard (KEY_AND_KEYSTORE_STORAGE_STANDARD.pdf) and an operational runbook (SECRET_ROTATION_AND_HISTORY_PURGE_RUNBOOK.pdf), both attached. They propose HashiCorp Vault with a separate path per environment, Harness deploy-time injection, and Checkmarx Secret Detection as a build gate.
+
+Before the fixes can be deployed past SYSTEM, I need the following questions answered. Please do not include any secret values in replies.
+
+Security / key management
+
+Q1. Is HashiCorp Vault the sanctioned secret store for all tiers (Unit, System, Readiness, Production, DR)?
+    * Is it Enterprise with HSM auto-unseal, and are the Transit and PKI engines available to us?
+Q2. Is CyberArk (CCP/Conjur) mandated for Oracle privileged accounts (DWNN, bodw__/bocrd__)?
+    * If so, we will use it for DB credentials and keep Vault for encryption keys.
+Q3. Is DR a replica that shares Production secrets, or does it need its own identity?
+    * RS uses distinct DR certificates today.
+
+BOE platform owner
+
+Q4. Is the CRD Production module of dwbo-businessobjects-config actually deployed?
+    * Its server.xml points at the fisdev.local.pfx dev keystore, as do CRD Readiness and CRD System. If it is live, we need production-CA and readiness-CA certificates issued before rotation.
+Q5. Which JDK and Tomcat versions ship on the BOE 4.3 hosts?
+    * This decides whether we can use the Windows certificate store (Windows-MY), which removes the keystore password entirely.
+Q6. Does the Harness BOE config deploy wipe D:\SAP\Tomcat\conf?
+    * If it does, host-provisioned catalina.properties would be overwritten.
+
+Rotation owners (please confirm or name)
+
+Q7. DBA: DWNN, bodw__/bocrd__ Oracle accounts, RS BaseDbContext.
+Q8. BOE admin: trusted-authentication shared secret (all 8 bic-sso environments), Tomcat keystores.
+Q9. Voltage admin: Voltage auth password/sharedSecret (bulkdecryption).
+Q10. RS team: the RsSecureKey machine key container and the Readiness/System secureAppSettings (12 files still use tripledes-cbc / rsa-1_5; Production and DR are already on AES-256/OAEP).
+Q13. UserMaintenance owner: FIS_ENCRYPTION_KEY / com.fis.encryption.key (f001) and re-encryption of the blobs it protects.
+
+Pipeline & toolchain
+
+Q11. Can Checkmarx One Secret Detection be turned on with a break-build policy for the IBSMAS projects, and JFrog Xray secrets detection for the ibsmas repositories?
+Q12. Who can run a Bitbucket history purge (filter-repo + force-push + GC) and a TFVC tf destroy once rotation is complete?
+    * This includes forks and mirrors, such as the fis-anthropic-poc evidence mirror: who controls it, and can it be purged or retired?
+
+Decisions on Q1, Q4-Q9, and Q13 unblock production deployment of f006, f010, f012, f014, and f001.
+
+Thanks,
+Joe
