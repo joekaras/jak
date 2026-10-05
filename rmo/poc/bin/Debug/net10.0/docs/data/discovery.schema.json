@@ -1,0 +1,107 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://fis.example/rmo/discovery.schema.json",
+  "title": "RMO migration discovery",
+  "description": "One Data/<yyyyMMddHHmmssfff>-discovery.json file: what the Report Migration Orchestrator found for one holding company and wave. Field meanings and observed values are in DISCOVERY_JSON.md. Unknown properties are allowed because the POC loader ignores them.",
+  "type": "object",
+  "required": ["Id", "DiscoveredAt", "HoldingCompany", "WaveId", "Environment", "Documents", "Jobs", "Schedules"],
+  "properties": {
+    "Id": { "type": "string", "format": "uuid", "description": "Discovery run id; route key for /api/discoveries/{id}." },
+    "DiscoveredAt": { "type": "string", "format": "date-time", "description": "When the run completed, ISO-8601 with offset (UTC). Drives the file name." },
+    "HoldingCompany": { "type": "string", "minLength": 1, "examples": ["548"], "description": "Bank / holding-company number; matches the H<nnn> prefix of FolderPath and OrgId in definitions." },
+    "WaveId": { "type": "string", "minLength": 1, "examples": ["1"], "description": "Migration wave." },
+    "Environment": { "type": "string", "minLength": 1, "examples": ["system"], "description": "Source BusinessObjects environment tier." },
+    "Documents": { "type": "array", "items": { "$ref": "#/$defs/MigrationDocument" }, "description": "Discovered Webi and Excel documents." },
+    "Jobs": { "type": "array", "items": { "$ref": "#/$defs/JobInfo" }, "description": "Report Scheduler jobs; may be empty." },
+    "Schedules": { "type": "array", "items": { "$ref": "#/$defs/ScheduleInfo" }, "description": "Report Scheduler schedules; may be empty." }
+  },
+  "$defs": {
+    "ReasonCode": {
+      "description": "Structured reason a document or data provider will not be converted. Producers should emit it alongside StatusMessage; consumers fall back to matching StatusMessage text when it is absent.",
+      "type": ["string", "null"],
+      "enum": ["BO_REFERENCE_MISSING", "UNV_UNSUPPORTED", "SNOWFLAKE_MAPPING_MISSING", "EXCEL_SOURCE_MISSING", "DP_RETRIEVAL_FAILED", "UNKNOWN", null]
+    },
+    "MigrationDocument": {
+      "type": "object",
+      "required": ["DocumentId", "Name", "FolderPath", "DocumentType", "IsPersonalFolderDocument", "ReadyToMigrate", "DataProviders", "CharSpaceFindings"],
+      "properties": {
+        "DocumentId": { "type": "integer", "description": "BusinessObjects SI_ID; unique within the file." },
+        "DocumentCuid": { "type": ["string", "null"], "description": "BusinessObjects CUID; null for Excel documents." },
+        "Name": { "type": "string", "description": "Document title." },
+        "FolderPath": { "type": "string", "description": "/-separated folder path from the bank root, no leading slash." },
+        "Owner": { "type": ["string", "null"], "description": "BusinessObjects owner login, when known." },
+        "DocumentType": { "type": "string", "examples": ["Webi", "Excel"], "description": "Document kind." },
+        "IsPersonalFolderDocument": { "type": "boolean", "description": "True when the document lives in a user's personal folder (Favorites)." },
+        "ReadyToMigrate": { "type": "boolean", "description": "Overall verdict. False means the document will not be converted; see StatusMessage and ReasonCode." },
+        "StatusMessage": { "type": ["string", "null"], "description": "Why the document is not ready; null when ready. Concatenates provider messages, or holds a document-level error." },
+        "ReasonCode": { "$ref": "#/$defs/ReasonCode", "description": "Document-level reason (e.g. DP_RETRIEVAL_FAILED). Provider-level reasons go on DataProviders[].ReasonCode." },
+        "DataProviders": { "type": "array", "items": { "$ref": "#/$defs/DataProviderInfo" } },
+        "CharSpaceFindings": { "type": "array", "items": { "$ref": "#/$defs/CharSpaceFinding" } }
+      }
+    },
+    "DataProviderInfo": {
+      "type": "object",
+      "required": ["Id", "Name", "OracleDataSourceType", "OracleDataSourceId", "OracleDataSourceName", "SnowflakeDataSourceId"],
+      "properties": {
+        "Id": { "type": "string", "examples": ["DP0"], "description": "Webi data-provider id; unique only within its document." },
+        "Name": { "type": "string", "description": "Query name as shown in Webi." },
+        "StatusMessage": { "type": ["string", "null"], "description": "Provider-level problem; null when the provider is mapped." },
+        "ReasonCode": { "$ref": "#/$defs/ReasonCode" },
+        "OracleDataSourceType": { "type": "string", "examples": ["Unx", "unx", "unv", "Excel"], "description": "Source universe kind. Casing varies; compare case-insensitively. unv is never migratable." },
+        "SnowflakeDataSourceType": { "type": ["string", "null"], "examples": ["Unx", "Excel"], "description": "Target universe kind; null when unmapped." },
+        "OracleDataSourceId": { "type": "integer", "description": "Source universe SI_ID; 0 when the reference could not be found." },
+        "OracleDataSourceCuid": { "type": ["string", "null"] },
+        "OracleDataSourceName": { "type": "string", "description": "Source universe file name, or the query name when unresolved." },
+        "SnowflakeDataSourceId": { "type": "integer", "description": "Target universe SI_ID; 0 when unmapped." },
+        "SnowflakeDataSourceCuid": { "type": ["string", "null"] },
+        "SnowflakeDataSourceName": { "type": ["string", "null"], "description": "Target universe name; null when unmapped." }
+      }
+    },
+    "CharSpaceFinding": {
+      "type": "object",
+      "required": ["ExpressionType", "CharSpaceFindingExpressions"],
+      "properties": {
+        "ExpressionType": { "type": "string", "examples": ["variable definition", "data provider specification"], "description": "Kind of container holding the expressions." },
+        "CharSpaceFindingExpressions": { "type": "array", "items": { "$ref": "#/$defs/CharSpaceFindingExpression" } },
+        "OldRaw": { "type": ["string", "null"], "description": "Whole container as found; can be several KB of formula, XML or JSON." },
+        "UpdateRaw": { "type": ["string", "null"], "description": "Container with the proposed expressions applied." }
+      }
+    },
+    "CharSpaceFindingExpression": {
+      "type": "object",
+      "properties": {
+        "Location": { "type": ["string", "null"], "description": "Human-readable position of the hit." },
+        "Expression": { "type": ["string", "null"], "description": "Offending fragment or formula." },
+        "ProposedExpression": { "type": ["string", "null"], "description": "Fragment with trailing spaces removed from the literal." }
+      }
+    },
+    "JobInfo": {
+      "type": "object",
+      "required": ["JobId", "Name", "DocumentId", "DocumentName", "FullDefinitionJson", "DependentJobs", "DependentOracleApplicationCodes", "DependentSnowflakeApplicationCodes", "DestinationDocumentIds", "ExtractPaths"],
+      "properties": {
+        "JobId": { "type": "string", "format": "uuid" },
+        "Name": { "type": "string" },
+        "DocumentId": { "type": "integer", "description": "Document the job runs; may not appear in Documents[] (left join). 0 for UploadFile jobs." },
+        "DocumentName": { "type": "string" },
+        "ScheduleId": { "type": ["string", "null"], "format": "uuid", "description": "Owning schedule; null for on-demand jobs." },
+        "FullDefinitionJson": { "type": "string", "description": "Serialised job definition (JSON inside a string). Contains untrusted user text." },
+        "DependentJobs": { "type": "array", "items": { "type": "string" } },
+        "DependentOracleApplicationCodes": { "type": "array", "items": { "type": "string" }, "description": "<AppCode>/<SubAppCode> entries." },
+        "DependentSnowflakeApplicationCodes": { "type": "array", "items": { "type": "string" } },
+        "DestinationDocumentIds": { "type": "array", "items": { "type": "integer" }, "description": "Excel documents written by DocumentRepository extracts." },
+        "ExtractPaths": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "ScheduleInfo": {
+      "type": "object",
+      "required": ["ScheduleId", "Name", "IsEnabled", "JobIds"],
+      "properties": {
+        "ScheduleId": { "type": "string", "format": "uuid" },
+        "Name": { "type": "string" },
+        "IsEnabled": { "type": "boolean" },
+        "FullDefinitionJson": { "type": ["string", "null"], "description": "Serialised schedule definition (JSON inside a string)." },
+        "JobIds": { "type": "array", "items": { "type": "string" }, "description": "Jobs attached to this schedule; mirrors Jobs[].ScheduleId." }
+      }
+    }
+  }
+}
