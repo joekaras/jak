@@ -10,7 +10,7 @@ using Fis.ReportMigrationOrchestrator.Core.Domain;
 
 namespace Fis.ReportMigrationOrchestrator.Reporting.Generators
 {
-    /// <summary>Helpers and styles shared by the discovery dashboard and the converted-detail report.</summary>
+    /// <summary>Helpers and styles shared by the readiness report summary and its detail sections.</summary>
     internal static class DiscoveryReportShared
     {
         /// <summary>Folder all discovery reports for one holding company and wave are written to.</summary>
@@ -35,6 +35,13 @@ namespace Fis.ReportMigrationOrchestrator.Reporting.Generators
                 else if (job.DestinationDocumentIds.Contains(document.DocumentId)) result.Add((job, "Writes output into this report"));
             }
             return result.OrderBy(x => x.Item1.Name, StringComparer.OrdinalIgnoreCase).ToList();
+        }
+
+        // A job that uses any report that won't convert is affected, so it is not counted as running on even if its other reports convert.
+        public static int JobsKeptRunning(MigrationDiscovery discovery)
+        {
+            var affected = discovery.Documents.Where(x => !x.ReadyToMigrate).SelectMany(x => JobsUsing(x, discovery.Jobs)).Select(x => x.Job.JobId).ToHashSet();
+            return discovery.Documents.Where(x => x.ReadyToMigrate).SelectMany(x => JobsUsing(x, discovery.Jobs)).Select(x => x.Job.JobId).Where(x => !affected.Contains(x)).Distinct().Count();
         }
 
         public static string ScheduleCell(JobInfo job, IReadOnlyDictionary<string, ScheduleInfo> schedules)

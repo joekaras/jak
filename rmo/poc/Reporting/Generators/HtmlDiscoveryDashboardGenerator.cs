@@ -62,7 +62,7 @@ namespace Fis.ReportMigrationOrchestrator.Reporting.Generators
             var queries = ready.Sum(x => x.DataProviders.Count);
             var targets = ready.SelectMany(x => x.DataProviders).Select(x => x.SnowflakeDataSourceName).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct(StringComparer.OrdinalIgnoreCase).Count();
             var rewrites = ready.Sum(x => x.CharSpaceFindings.Sum(f => f.CharSpaceFindingExpressions.Count));
-            var keptJobs = ready.SelectMany(x => JobsUsing(x, discovery.Jobs)).Select(x => x.Job.JobId).Distinct().Count();
+            var keptJobs = JobsKeptRunning(discovery);
 
             var html = new StringBuilder();
             html.AppendLine("<!DOCTYPE html><html lang='en'><head><meta charset='utf-8'/><meta name='viewport' content='width=device-width, initial-scale=1'/>");

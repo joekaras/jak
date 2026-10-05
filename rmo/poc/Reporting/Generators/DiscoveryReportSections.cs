@@ -28,7 +28,8 @@ namespace Fis.ReportMigrationOrchestrator.Reporting.Generators
                 .OrderBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
                 .Select(x => (Document: x, Reasons: x.Reasons()))
                 .ToList();
-            var jobs = notReady.ToDictionary(x => x.Document.DocumentId, x => JobsUsing(x.Document, discovery.Jobs));
+            // DistinctBy: DocumentId should be unique (DISCOVERY_JSON.md §7) but nothing enforces it, and JobsUsing depends only on the ID.
+            var jobs = notReady.DistinctBy(x => x.Document.DocumentId).ToDictionary(x => x.Document.DocumentId, x => JobsUsing(x.Document, discovery.Jobs));
             var byReason = notReady
                 .SelectMany(x => x.Reasons.Select(code => (Code: code, Item: x)))
                 .GroupBy(x => x.Code)
@@ -102,12 +103,12 @@ namespace Fis.ReportMigrationOrchestrator.Reporting.Generators
         public static string Converting(MigrationDiscovery discovery, IReadOnlyDictionary<string, ScheduleInfo> schedules)
         {
             var ready = discovery.Documents.Where(x => x.ReadyToMigrate).OrderBy(x => x.Name, StringComparer.OrdinalIgnoreCase).ToList();
-            var jobs = ready.ToDictionary(x => x.DocumentId, x => JobsUsing(x, discovery.Jobs));
+            var jobs = ready.DistinctBy(x => x.DocumentId).ToDictionary(x => x.DocumentId, x => JobsUsing(x, discovery.Jobs));
             var queries = ready.Sum(x => x.DataProviders.Count);
             var targets = ready.SelectMany(Targets).Where(x => x != NoQueries).Distinct(StringComparer.OrdinalIgnoreCase).Count();
             var withRewrites = ready.Count(x => x.CharSpaceFindings.Count > 0);
             var rewriteCount = ready.Sum(x => x.CharSpaceFindings.Sum(f => f.CharSpaceFindingExpressions.Count));
-            var keptJobs = jobs.Values.SelectMany(x => x).Select(x => x.Job.JobId).Distinct().Count();
+            var keptJobs = JobsKeptRunning(discovery);
             var byTarget = ready
                 .SelectMany(document => Targets(document).Select(target => (Target: target, Document: document)))
                 .GroupBy(x => x.Target, StringComparer.OrdinalIgnoreCase)
