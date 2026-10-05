@@ -1,6 +1,0 @@
-﻿Timestamp,EventType,ObjectType,ObjectId,Success,ErrorMessage
-10/4/2026 5:18:40 AM +00:00,RunStarted,Run,9d8c7b6a-5e4f-4e31-8a71-605243f4e5d6,True,
-10/4/2026 5:19:40 AM +00:00,DocumentMigrated,Document,577724,True,
-10/4/2026 5:20:40 AM +00:00,DocumentMigrated,Document,577501,True,
-10/4/2026 5:21:40 AM +00:00,ScheduleMigrated,Schedule,ebb555fa-6b50-4d83-b6b5-0c8c12edd74c,True,
-10/4/2026 5:23:40 AM +00:00,RunCompleted,Run,9d8c7b6a-5e4f-4e31-8a71-605243f4e5d6,True,

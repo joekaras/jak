@@ -1,0 +1,48 @@
+# Build output
+[Bb]in/
+[Oo]bj/
+# ...but keep agent skill tool binaries
+!**/skills/**/scripts/bin/
+[Ll]og/
+[Ll]ogs/
+artifacts/
+publish/
+*.nupkg
+
+# Visual Studio / Rider / VS Code
+.vs/
+.idea/
+*.user
+*.suo
+*.userprefs
+*.rsuser
+.vscode/*
+!.vscode/settings.json
+!.vscode/launch.json
+!.vscode/tasks.json
+
+# Test results / coverage
+[Tt]est[Rr]esult*/
+*.trx
+coverage*.json
+coverage*.xml
+
+# ASP.NET Core
+appsettings.*.local.json
+*.pubxml.user
+wwwroot/lib/
+node_modules/
+
+# Generated report runs
+/rmo/poc/runs/
+
+# Secrets and env
+.env
+.env.*
+*.pfx
+*.snk
+
+# OS
+Thumbs.db
+desktop.ini
+.DS_Store
