@@ -1,0 +1,10 @@
+# Store text with LF and check it out with LF; overrides core.autocrlf.
+* text=auto eol=lf
+
+# cmd.exe needs CRLF.
+*.cmd text eol=crlf
+*.bat text eol=crlf
+
+*.png binary
+*.exe binary
+*.pdf binary
