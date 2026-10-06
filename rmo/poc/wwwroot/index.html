@@ -39,7 +39,7 @@
 <h2>Migration Run Audit Reports <span class="muted">(Html / Pdf / Excel generators)</span></h2>
 <table>
   <thead>
-    <tr><th>Run</th><th>Events</th><th>Succeeded</th><th>Skipped</th><th>Failed</th><th>Generate</th></tr>
+    <tr><th>Run</th><th>Events</th><th>Succeeded</th><th>Skipped</th><th>Failed</th><th>Report</th></tr>
   </thead>
   <tbody id="runRows"></tbody>
 </table>
@@ -65,6 +65,7 @@ async function loadDiscoveries() {
         <button class="btn btn-solid" onclick="generateDiscovery('${d.Id}')">Generate</button>
         <a class="btn" href="/api/discoveries/${d.Id}/report/view" target="_blank">View</a>
         <a class="btn btn-solid" href="/api/discoveries/${d.Id}/report/readiness" target="_blank">Readiness report</a>
+        <a class="btn btn-solid" href="/api/discoveries/${d.Id}/report/readiness/pdf" target="_blank">Readiness PDF</a>
       </td>`;
     rows.appendChild(tr);
   }
@@ -96,8 +97,8 @@ async function loadRuns() {
       <td>${r.Skipped}</td>
       <td class="${r.Failed > 0 ? 'badge-fail' : 'badge-ok'}">${r.Failed}</td>
       <td>
-        <a class="btn" href="/api/runs/${r.RunId}/report?format=html" target="_blank">HTML</a>
-        <a class="btn" href="/api/runs/${r.RunId}/report?format=pdf">PDF</a>
+        <a class="btn btn-solid" href="/api/runs/${r.RunId}/report?format=html" target="_blank">Run report</a>
+        <a class="btn btn-solid" href="/api/runs/${r.RunId}/report?format=pdf" target="_blank">Run PDF</a>
         <a class="btn" href="/api/runs/${r.RunId}/report?format=csv">CSV</a>
         <a class="btn" href="/api/runs/${r.RunId}/report?format=xlsx">XLSX</a>
       </td>`;

@@ -91,6 +91,12 @@ namespace Fis.ReportMigrationOrchestrator.Core.Domain
             return codes.Distinct().ToList();
         }
 
+        /// <summary>Reason codes recognised in a free-text message, such as an audit event's error message.</summary>
+        public static IReadOnlyList<string> FromMessage(string? message)
+        {
+            return Match(message).ToList();
+        }
+
         private static IEnumerable<string> Match(string? message)
         {
             if (string.IsNullOrWhiteSpace(message)) yield break;

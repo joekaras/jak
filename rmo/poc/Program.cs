@@ -98,6 +98,24 @@ app.MapGet("/api/discoveries/{id:guid}/report/readiness", async (Guid id, Discov
     return Results.Content(html, "text/html");
 });
 
+// Regenerates the readiness HTML, prints it next to itself as <stem>-readiness.pdf, and shows it inline.
+app.MapGet("/api/discoveries/{id:guid}/report/readiness/pdf", async (Guid id, DiscoveryStore store, HtmlDiscoveryDashboardGenerator generator, HttpContext context, CancellationToken cancellationToken) =>
+{
+    var discovery = store.Get(id);
+    if (discovery is null)
+    {
+        return Results.NotFound();
+    }
+
+    var htmlPath = await generator.GenerateAsync(discovery, cancellationToken);
+    var pdfPath = Path.ChangeExtension(htmlPath, ".pdf");
+    await EdgePdfPrinter.PrintAsync(htmlPath, pdfPath, cancellationToken);
+    EdgePdfPrinter.RemoveRepeatedLinks(pdfPath);
+    var bytes = await File.ReadAllBytesAsync(pdfPath, cancellationToken);
+    context.Response.Headers.ContentDisposition = $"inline; filename=\"{Path.GetFileName(pdfPath)}\"";
+    return Results.File(bytes, "application/pdf");
+});
+
 app.MapGet("/api/runs", async (InMemoryAuditLogger auditLogger, CancellationToken cancellationToken) =>
 {
     var runs = new List<object>();
@@ -117,7 +135,7 @@ app.MapGet("/api/runs", async (InMemoryAuditLogger auditLogger, CancellationToke
     return runs;
 });
 
-app.MapGet("/api/runs/{runId:guid}/report", async (Guid runId, string? format, IEnumerable<IReportGenerator> generators, InMemoryAuditLogger auditLogger, IHostEnvironment environment, CancellationToken cancellationToken) =>
+app.MapGet("/api/runs/{runId:guid}/report", async (Guid runId, string? format, IEnumerable<IReportGenerator> generators, InMemoryAuditLogger auditLogger, IHostEnvironment environment, HttpContext context, CancellationToken cancellationToken) =>
 {
     format ??= "html";
 
@@ -140,10 +158,17 @@ app.MapGet("/api/runs/{runId:guid}/report", async (Guid runId, string? format, I
     return format.ToLowerInvariant() switch
     {
         "html" => Results.File(bytes, "text/html; charset=utf-8"),
-        "pdf" => Results.File(bytes, "application/pdf", "report.pdf"),
+        // Inline, so the PDF opens in a browser tab like the readiness PDF; a download name would force a save.
+        "pdf" => InlinePdf(context, bytes, "report.pdf"),
         "csv" => Results.File(bytes, "text/csv; charset=utf-8", "report.csv"),
         _ => Results.File(bytes, "text/csv; charset=utf-8", "report.xlsx.csv")
     };
 });
 
 app.Run();
+
+static IResult InlinePdf(HttpContext context, byte[] bytes, string fileName)
+{
+    context.Response.Headers.ContentDisposition = $"inline; filename=\"{fileName}\"";
+    return Results.File(bytes, "application/pdf");
+}

@@ -118,6 +118,9 @@ namespace Fis.ReportMigrationOrchestrator.Reporting.Generators
             return count.ToString(CultureInfo.InvariantCulture) + " " + (count == 1 ? singular : plural);
         }
 
+        // Targets the summary's impact strip (id 'summary'); PDF viewers often have no obvious back button.
+        public const string BackLink = "<a class='back' href='#summary'>Back to summary</a>";
+
         public static string ReasonAnchor(string code) { return "reason-" + code.ToLowerInvariant().Replace('_', '-'); }
         public static string Date(DateTimeOffset value) { return value.UtcDateTime.ToString("d MMM yyyy HH:mm", CultureInfo.InvariantCulture); }
         public static string E(string? value) { return WebUtility.HtmlEncode(value ?? string.Empty); }
@@ -144,6 +147,7 @@ h4 { font-size:13px; margin:18px 0 6px; color:var(--ink); font-weight:600; }
 .report-section { margin-top:34px; }
 .section-head { font-size:20px; color:var(--ink); margin:0 0 14px; padding-bottom:10px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:10px; }
 .key { display:inline-block; width:10px; height:10px; border-radius:2px; flex:none; } .key-ok { background:var(--ok); } .key-fail { background:var(--fail); }
+.back { margin-left:auto; font-size:12.5px; font-weight:400; color:var(--navy); white-space:nowrap; }
 .ok-ink { color:var(--ok); } .fail-ink { color:var(--fail); }
 .summary .lede { font-size:18px; margin:0 0 14px; } .summary .lede strong { font-weight:600; }
 dl.stats { display:grid; grid-template-columns:repeat(3,1fr); gap:12px 24px; margin:0; padding-top:14px; border-top:1px solid var(--line); }
@@ -160,7 +164,7 @@ table.rewrites td.expr { white-space:pre-wrap; word-break:break-word; }
 .tech { margin-top:12px; font-size:12px; color:var(--muted); }
 .tech p { white-space:pre-wrap; word-break:break-word; background:var(--bg); padding:8px; border-radius:6px; margin:6px 0 0; }
 .empty { text-align:center; padding:32px 20px; } .empty .card-title { color:var(--ok); }
-.print-only { display:none; }
+.print-only, .print-inline { display:none; }
 .raw { margin:8px 0 4px; font-size:12px; }
 .raw > summary { color:var(--navy); font-weight:600; }
 .raw-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; margin-top:8px; }
@@ -212,9 +216,9 @@ footer { text-align:center; color:var(--muted); font-size:12px; margin:18px 0 4p
   .card, .page-head { box-shadow:none; break-inside:avoid; }
   .page-head, .tag, mark.sp, .bar span, .impact, .key, .callout { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
   .report-section { break-before:page; margin-top:0; } .report-section-empty { break-before:auto; margin-top:24px; }
-  .drill { display:none; } .print-only { display:block; }
+  .drill, .screen-only { display:none; } .print-only { display:block; } .print-inline { display:inline; }
   .appendix { break-inside:auto; } .appendix .folder { min-width:30%; } .appendix td.report { overflow-wrap:anywhere; }
-  .print-group { break-inside:avoid; margin-bottom:8px; } .print-group-title { margin:12px 0 4px; font-size:14px; }
+  .print-group { break-inside:avoid; margin-bottom:8px; } .print-group-title { margin:12px 0 4px; font-size:14px; display:flex; align-items:baseline; gap:8px; }
   .print-doc { break-inside:avoid-page; border-top:1px solid var(--line); padding-top:6px; } .print-doc-title { font-size:14px; margin:10px 0 2px; }
   a { color:inherit; text-decoration:none; }
 }
