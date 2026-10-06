@@ -10,7 +10,7 @@ memory.
 `RmoReportingPoc` is a proof of concept for the Report Migration Orchestrator (RMO) reporting layer. It's an
 ASP.NET Core minimal API on .NET 10 with a static UI in `wwwroot/index.html`. It serves migration discovery data,
 generates a customer-facing readiness report per discovery, and generates run reports in HTML, PDF and CSV.
-There's no git repo and no test project.
+It lives in the `C:\jak` git repo, at `rmo/poc`. There's no test project.
 
 ## Build and run
 
@@ -38,7 +38,11 @@ The URLs come from `Properties/launchSettings.json`: https://localhost:60326 and
   - `HtmlDiscoveryDashboardGenerator`: the customer readiness report (`/api/discoveries/{id}/report/readiness`),
     written as one file, `<stem>-readiness.html`. Summary first, then the sections from
     `DiscoveryReportSections` (won't convert, then will convert). Shared CSS and helpers are in
-    `DiscoveryReportShared`.
+    `DiscoveryReportShared`. `/api/discoveries/{id}/report/readiness/pdf` prints that HTML to
+    `<stem>-readiness.pdf` and serves it inline.
+  - `PdfReportGenerator`: the run report PDF (`format=pdf`), printed from `HtmlReportGenerator`'s HTML.
+  - `EdgePdfPrinter`: prints an HTML file to PDF with headless Edge, then uses PDFsharp to remove the side-navigation
+    links Chromium repeats on every page. Both PDFs go through it.
 - `DiscoveryStore.cs`: loads every `Data/*-discovery.json` file once, at startup.
 - `Data/`: sample discovery JSON, copied to the output folder.
 - `docs/`: reference docs — `architecture/SYSTEM_MAP.md`, `data/DISCOVERY_JSON.md` (format of the input files)
@@ -55,8 +59,8 @@ The URLs come from `Properties/launchSettings.json`: https://localhost:60326 and
   `IConfigurationProvider` from colliding with the RMO interface of the same name.
 - JSON responses keep PascalCase property names (`PropertyNamingPolicy = null` in `Program.cs`).
 - Discovery report paths are cached in memory per discovery ID, so they're lost on restart.
-- The PDF generator needs `GlobalFontSettings.UseWindowsFontsUnderWindows = true`, so PDF output works on Windows
-  only.
+- PDFs (run report and readiness report) are the HTML reports printed by headless Microsoft Edge
+  (`Reporting/Generators/EdgePdfPrinter.cs`), so PDF output works only where Edge is installed (Windows).
 - The readiness report goes to customers as a file. Keep it one self-contained page: inline CSS, no JavaScript, no
   external fonts or images. Collapsed `<details>` don't print, so every drill-down needs a `.print-only` flat copy.
 - Customer wording for each reason lives in the catalogue in `Core/Domain/ConversionReason.cs`; every code has an

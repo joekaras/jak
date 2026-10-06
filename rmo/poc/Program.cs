@@ -3,11 +3,8 @@ using Fis.ReportMigrationOrchestrator.Core.Abstractions;
 using Fis.ReportMigrationOrchestrator.Core.Domain;
 using Fis.ReportMigrationOrchestrator.Reporting.Generators;
 using Microsoft.AspNetCore.Http.Json;
-using PdfSharp.Fonts;
 using RmoReportingPoc;
 using RmoReportingPoc.Core.Stubs;
-
-GlobalFontSettings.UseWindowsFontsUnderWindows = true;
 
 var builder = WebApplication.CreateBuilder(args);
 
