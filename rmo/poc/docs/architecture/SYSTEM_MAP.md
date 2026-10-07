@@ -114,7 +114,7 @@ environment variable read in scope. The only environment variable set anywhere i
 | Command | Source |
 |---|---|
 | `dotnet build RmoReportingPoc.csproj` | `CLAUDE.md` "Build and run"; project file `RmoReportingPoc.csproj:1` |
-| `dotnet run --project RmoReportingPoc.csproj` (profile `RmoReportingPoc`: https://localhost:60326, http://localhost:60327) | `CLAUDE.md` "Build and run"; `Properties/launchSettings.json:3-9` |
+| `dotnet run --project RmoReportingPoc.csproj` (profile `RmoReportingPoc`: https://localhost:5326, http://localhost:5327) | `CLAUDE.md` "Build and run"; `Properties/launchSettings.json:3-9` |
 | Solution: `RmoReportingPoc.slnx` (single project) | `RmoReportingPoc.slnx:1-3` |
 | Tests | `NOT FOUND`: no test project in scope |
 | Lint | `NOT FOUND`: no analyzer config, `.editorconfig` or lint script in scope |

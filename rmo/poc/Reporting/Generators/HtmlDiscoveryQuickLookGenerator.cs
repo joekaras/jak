@@ -81,7 +81,7 @@ namespace Fis.ReportMigrationOrchestrator.Reporting.Generators
             html.AppendLine("</section>");
 
             // 2. Documents that convert with whitespace changes to their expressions.
-            html.AppendLine("<section class='card' aria-labelledby='q-space'><h2 id='q-space'><i class='key key-change' aria-hidden='true'></i>Documents with whitespace changes <span class='count'>" + whitespace.Count + "</span>" + (whitespace.Count > 0 ? DetailsLink("#" + DiscoveryReportSections.ConvertingListId) : string.Empty) + "</h2>");
+            html.AppendLine("<section class='card' aria-labelledby='q-space'><h2 id='q-space'><i class='key key-change' aria-hidden='true'></i>Documents with whitespace changes <span class='count'>" + whitespace.Count + "</span>" + (whitespace.Count > 0 ? DetailsLink("#" + DiscoveryReportSections.ConvertingId) : string.Empty) + "</h2>");
             if (whitespace.Count == 0)
             {
                 html.AppendLine("<p class='muted'>No converting document needs its expressions changed.</p>");
@@ -116,8 +116,8 @@ namespace Fis.ReportMigrationOrchestrator.Reporting.Generators
             html.AppendLine("</section></div>");
 
             // Detail sections, shared with the readiness report. Each starts a new printed page.
-            html.Append(DiscoveryReportSections.NotConverting(discovery, schedules, (rows, "Back to quick look")));
-            html.Append(DiscoveryReportSections.Converting(discovery, schedules, (rows, "Back to quick look")));
+            html.Append(DiscoveryReportSections.NotConverting(discovery, schedules, (rows, "Back to quick look"), fullList: false));
+            html.Append(DiscoveryReportSections.Converting(discovery, schedules, (rows, "Back to quick look"), fullList: false));
             html.AppendLine("</main>");
 
             html.AppendLine(Footer(discovery));

@@ -22,11 +22,11 @@ dotnet build RmoReportingPoc.csproj
 dotnet run --project RmoReportingPoc.csproj
 ```
 
-The URLs come from `Properties/launchSettings.json`: https://localhost:60326 and http://localhost:60327.
+The URLs come from `Properties/launchSettings.json`: https://localhost:5326 and http://localhost:5327.
 
 ## Layout
 
-- `Program.cs`: DI registration and all endpoints (`/api/discoveries...`, `/api/runs...`).
+- `Program.cs`: DI registration and all endpoints (`/api/discoveries...`, `/api/delivery`, `/api/runs...`).
 - `Core/Abstractions`, `Core/Domain`: interfaces and models in namespace `Fis.ReportMigrationOrchestrator.Core.*`.
   - `ConversionReason.cs`: why a document won't convert (`ReasonCode` first, `StatusMessage` text as fallback).
   - `ExpressionTypes.cs`: customer names for CHAR finding expression types (`variable definition` shows as
@@ -45,13 +45,18 @@ The URLs come from `Properties/launchSettings.json`: https://localhost:60326 and
   - `HtmlDiscoveryQuickLookGenerator`: the short version of the readiness report
     (`/api/discoveries/{id}/report/quicklook`, `<stem>-quicklook.html`; `/pdf` prints `<stem>-quicklook.pdf`). Three
     scan lists come first: documents that won't convert, with folder and reason; documents with whitespace changes;
-    scheduler jobs that use the documents that won't convert. The same `DiscoveryReportSections` follow. Each document
+    scheduler jobs that use the documents that won't convert. The same `DiscoveryReportSections` follow, without their
+    full report lists (`fullList: false`), since the scan lists already cover them. Each document
     name in the lists links to its details, and each of those details links back to its row in the first or second
     list.
   - `PdfReportGenerator`: the run report PDF (`format=pdf`), printed from `HtmlReportGenerator`'s HTML.
   - `EdgePdfPrinter`: prints an HTML file to PDF with headless Edge, then uses PDFsharp to remove the side-navigation
     links Chromium repeats on every page. All three PDFs are printed by it; the quick look skips the link removal
     because it has no side navigation.
+- `Reporting/DeliveryExporter.cs`: `POST /api/delivery` (the "Generate all for delivery" button). For every
+  discovery it regenerates the readiness report and the quick look, prints both to PDF, and copies the four files to
+  `<OutputRoot>/delivery/<holding company>/` as `<holding company>-wave<wave>-<stem>-<report>.<ext>`, where the
+  delivery service picks them up.
 - `DiscoveryStore.cs`: loads every `Data/*-discovery.json` file once, at startup.
 - `Data/`: sample discovery JSON, copied to the output folder.
 - `docs/`: reference docs — `architecture/SYSTEM_MAP.md`, `data/DISCOVERY_JSON.md` (format of the input files)
@@ -83,11 +88,21 @@ The URLs come from `Properties/launchSettings.json`: https://localhost:60326 and
   first drill-down the document appears in (the browser opens it when a link is followed), and the same id with
   `-print` on the end goes on the flat print copy, so a link to a document needs a screen version and a print
   version.
-- Every document's details link back to its row in the full report list ("Back to report list"). The optional
-  `back` argument of `NotConverting` and `Converting` adds one more link in front of it; the quick look uses it for
-  "Back to quick look".
-- Print rules keep rows of the full report lists and of the quick-look tables on one page
+- In the readiness report, every document's details link back to its row in the full report list ("Back to report
+  list"). The optional `back` argument of `NotConverting` and `Converting` adds one more link in front of it; the
+  quick look uses it for "Back to quick look". With `fullList: false` there's no list to return to, so a document
+  not in `back`'s targets gets no back link.
+- "Technical detail" shows one bullet per query message (`DataProviders[].StatusMessage`), and only when those
+  messages joined with a space equal the document's `StatusMessage`. Otherwise the whole document message is one
+  bullet, so no text is lost. Don't split the message on full stops: some single reasons have two sentences. The
+  Queries table also shows each query's message as a bullet under its status, so the same text appears in both.
+- Print rules keep rows of the readiness report's full report lists and of the quick-look tables on one page
   (`break-inside:avoid`). Without them, a long row splits across two pages.
+- The delivery export deletes and rebuilds `<OutputRoot>/delivery` on every call, so never put anything else in it.
+  Exports run one at a time (a semaphore in `DeliveryExporter`), because a second one would delete the folder the
+  first is writing into. A discovery that fails has its own files removed and is listed in the response's
+  `Failures`; the others are still delivered and the call still returns 200. Only a cancelled request stops the
+  whole export.
 - A running Visual Studio debug session locks `bin\`. To check a build without stopping it, use
   `dotnet build RmoReportingPoc.csproj -p:OutDir=<scratch folder>\`.
 

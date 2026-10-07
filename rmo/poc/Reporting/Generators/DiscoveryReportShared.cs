@@ -162,7 +162,9 @@ dl.stats dd { margin:0; display:flex; flex-direction:column; font-size:13px; }
 table.rewrites td.where { font-size:12px; color:var(--muted); width:30%; word-break:break-word; }
 table.rewrites td.expr { white-space:pre-wrap; word-break:break-word; }
 .tech { margin-top:12px; font-size:12px; color:var(--muted); }
-.tech p { white-space:pre-wrap; word-break:break-word; background:var(--bg); padding:8px; border-radius:6px; margin:6px 0 0; }
+.tech ul { background:var(--bg); padding:8px 8px 8px 26px; border-radius:6px; margin:6px 0 0; }
+.tech li { white-space:pre-wrap; word-break:break-word; } .tech li + li { margin-top:4px; }
+.status-msg { margin:4px 0 0; padding-left:18px; font-size:11.5px; color:var(--muted); } .status-msg li { word-break:break-word; }
 .empty { text-align:center; padding:32px 20px; } .empty .card-title { color:var(--ok); }
 .print-only, .print-inline { display:none; }
 .raw { margin:8px 0 4px; font-size:12px; }

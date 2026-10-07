@@ -34,6 +34,7 @@
   </thead>
   <tbody id="discoveryRows"></tbody>
 </table>
+<p><button class="btn btn-solid" onclick="exportDelivery()">Generate all for delivery</button></p>
 <p id="discoveryStatus" class="path"></p>
 
 <h2>Migration Run Audit Reports <span class="muted">(Html / Pdf / Excel generators)</span></h2>
@@ -83,6 +84,19 @@ async function generateDiscovery(id) {
   }
   const result = await response.json();
   status.textContent = 'Written to: ' + result.Path;
+}
+
+async function exportDelivery() {
+  const status = document.getElementById('discoveryStatus');
+  status.textContent = 'Generating all customer reports...';
+  const response = await fetch('/api/delivery', { method: 'POST' });
+  if (!response.ok) {
+    status.textContent = 'Delivery export failed: HTTP ' + response.status;
+    return;
+  }
+  const result = await response.json();
+  status.textContent = result.Files.length + ' files written to: ' + result.Folder
+    + (result.Failures.length ? '. Not delivered: ' + result.Failures.map(f => `holding company ${f.HoldingCompany} wave ${f.WaveId} (${f.Error})`).join('; ') : '');
 }
 
 async function loadRuns() {

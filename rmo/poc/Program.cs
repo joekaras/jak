@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using Fis.ReportMigrationOrchestrator.Core.Abstractions;
 using Fis.ReportMigrationOrchestrator.Core.Domain;
+using Fis.ReportMigrationOrchestrator.Reporting;
 using Fis.ReportMigrationOrchestrator.Reporting.Generators;
 using Microsoft.AspNetCore.Http.Json;
 using RmoReportingPoc;
@@ -24,6 +25,7 @@ builder.Services.AddSingleton<IReportGenerator, ExcelReportGenerator>();
 builder.Services.AddSingleton<IDiscoveryReportGenerator, HtmlDiscoveryReportGenerator>();
 builder.Services.AddSingleton<HtmlDiscoveryDashboardGenerator>();
 builder.Services.AddSingleton<HtmlDiscoveryQuickLookGenerator>();
+builder.Services.AddSingleton<DeliveryExporter>();
 
 var app = builder.Build();
 
@@ -143,6 +145,13 @@ app.MapGet("/api/discoveries/{id:guid}/report/quicklook/pdf", async (Guid id, Di
     var bytes = await File.ReadAllBytesAsync(pdfPath, cancellationToken);
     context.Response.Headers.ContentDisposition = $"inline; filename=\"{Path.GetFileName(pdfPath)}\"";
     return Results.File(bytes, "application/pdf");
+});
+
+// Rebuilds <OutputRoot>/delivery: readiness and quick look, HTML and PDF, for every discovery, one folder per holding company.
+app.MapPost("/api/delivery", async (DiscoveryStore store, DeliveryExporter exporter, CancellationToken cancellationToken) =>
+{
+    // 200 even when some discoveries fail: the rest were delivered, and Failures names the ones that weren't.
+    return Results.Ok(await exporter.ExportAsync(store.GetAll(), cancellationToken));
 });
 
 app.MapGet("/api/runs", async (InMemoryAuditLogger auditLogger, CancellationToken cancellationToken) =>
