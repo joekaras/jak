@@ -23,7 +23,9 @@ namespace Fis.ReportMigrationOrchestrator.Reporting.Generators
         public const string ConvertingListId = "converting-list";
         private const string NoQueries = "Excel workbooks (no queries)";
 
-        public static string NotConverting(MigrationDiscovery discovery, IReadOnlyDictionary<string, ScheduleInfo> schedules)
+        // Every document's detail links back to its row in the full report list. back adds a link before that one: where
+        // the document returns to (an id, without '#') and the link's wording. Documents not in Targets get no extra link.
+        public static string NotConverting(MigrationDiscovery discovery, IReadOnlyDictionary<string, ScheduleInfo> schedules, (IReadOnlyDictionary<MigrationDocument, string> Targets, string Label)? back = null)
         {
             var notReady = discovery.Documents
                 .Where(x => !x.ReadyToMigrate)
@@ -43,6 +45,7 @@ namespace Fis.ReportMigrationOrchestrator.Reporting.Generators
             // Position in the name-sorted list keys the jobs anchors; DocumentId may repeat, so it can't.
             var position = notReady.Select((x, i) => (x.Document, i)).ToDictionary(x => x.Document, x => x.i, (IEqualityComparer<MigrationDocument>)ReferenceEqualityComparer.Instance);
             var anchored = new HashSet<MigrationDocument>(ReferenceEqualityComparer.Instance);
+            var documentAnchors = DocumentAnchors(discovery);
 
             var html = new StringBuilder();
             html.AppendLine("<section class='report-section' id='" + NotConvertingId + "' aria-labelledby='" + NotConvertingId + "-title'><h2 class='section-head' id='" + NotConvertingId + "-title'><i class='key key-fail' aria-hidden='true'></i>Reports that will not convert" + BackLink + "</h2>");
@@ -79,7 +82,8 @@ namespace Fis.ReportMigrationOrchestrator.Reporting.Generators
                     html.Append("<details class='doc'><summary><span class='summary-title doc-name'>" + E(item.Document.Name) + "</span>");
                     if (jobs[item.Document.DocumentId].Count > 0) html.Append("<span class='tag tag-impact'>" + Plural(jobs[item.Document.DocumentId].Count, "job", "jobs") + "</span>");
                     if (item.Document.IsPersonalFolderDocument) html.Append("<span class='tag'>Personal folder</span>");
-                    html.AppendLine("</summary><div class='doc-body'>" + NotConvertingBody(item.Document, item.Reasons, group.Key, jobs[item.Document.DocumentId], schedules, forPrint: false, anchored.Add(item.Document) ? JobsAnchor("nc", position[item.Document]) : null) + "</div></details>");
+                    var first = anchored.Add(item.Document);
+                    html.AppendLine("</summary><div class='doc-body'" + (first ? " id='" + documentAnchors[item.Document] + "'" : string.Empty) + ">" + DocumentBackLink(item.Document, documentAnchors[item.Document], back, forPrint: false) + NotConvertingBody(item.Document, item.Reasons, group.Key, jobs[item.Document.DocumentId], schedules, forPrint: false, first ? JobsAnchor("nc", position[item.Document]) : null) + "</div></details>");
                 }
                 html.AppendLine("</details><div class='print-only print-group'><h4 class='print-group-title'>" + E(reason.Title) + " <span class='count'>" + Plural(group.Count(), "report", "reports") + "</span>" + BackLink + "</h4>" + ReasonGuidance(reason) + "</div></div>");
             }
@@ -87,7 +91,7 @@ namespace Fis.ReportMigrationOrchestrator.Reporting.Generators
             html.AppendLine("<div class='card appendix' id='" + NotConvertingListId + "'><h3 class='card-title'>Full report list <span class='count'>" + notReady.Count + "</span></h3><p class='explain muted'>Each report once, with its folder, its reasons and the number of jobs that use it.</p><div class='table-wrap'><table><thead><tr><th>Report</th><th>Folder</th><th>Reason</th><th class='num wrap'>Jobs</th></tr></thead><tbody>");
             foreach (var item in notReady)
             {
-                html.AppendLine("<tr><td class='report'>" + E(item.Document.Name) + "<div class='muted num'>ID " + item.Document.DocumentId + "</div></td><td class='folder' data-label='Folder'>" + E(item.Document.FolderPath) + "</td><td data-label='Reason'>" + string.Join("<br/>", item.Reasons.Select(code => E(ConversionReasons.Get(code).Title))) + "</td><td class='num' data-label='Jobs'>" + JobsCell(jobs[item.Document.DocumentId].Count, JobsAnchor("nc", position[item.Document])) + "</td></tr>");
+                html.AppendLine("<tr id='" + ListRowAnchor(documentAnchors[item.Document]) + "'><td class='report'>" + E(item.Document.Name) + "<div class='muted num'>ID " + item.Document.DocumentId + "</div></td><td class='folder' data-label='Folder'>" + E(item.Document.FolderPath) + "</td><td data-label='Reason'>" + string.Join("<br/>", item.Reasons.Select(code => E(ConversionReasons.Get(code).Title))) + "</td><td class='num' data-label='Jobs'>" + JobsCell(jobs[item.Document.DocumentId].Count, JobsAnchor("nc", position[item.Document])) + "</td></tr>");
             }
             html.AppendLine("</tbody></table></div></div>");
 
@@ -95,13 +99,13 @@ namespace Fis.ReportMigrationOrchestrator.Reporting.Generators
             html.AppendLine("<div class='print-only'><h3 class='card-title'>Details of reports that will not convert</h3>");
             foreach (var item in notReady)
             {
-                html.AppendLine("<article class='print-doc'><h4 class='print-doc-title'>" + E(item.Document.Name) + "</h4>" + NotConvertingBody(item.Document, item.Reasons, null, jobs[item.Document.DocumentId], schedules, forPrint: true, JobsAnchor("nc", position[item.Document]) + "-print") + "</article>");
+                html.AppendLine("<article class='print-doc' id='" + documentAnchors[item.Document] + "-print'><h4 class='print-doc-title'>" + E(item.Document.Name) + DocumentBackLink(item.Document, documentAnchors[item.Document], back, forPrint: true) + "</h4>" + NotConvertingBody(item.Document, item.Reasons, null, jobs[item.Document.DocumentId], schedules, forPrint: true, JobsAnchor("nc", position[item.Document]) + "-print") + "</article>");
             }
             html.AppendLine("</div></section>");
             return html.ToString();
         }
 
-        public static string Converting(MigrationDiscovery discovery, IReadOnlyDictionary<string, ScheduleInfo> schedules)
+        public static string Converting(MigrationDiscovery discovery, IReadOnlyDictionary<string, ScheduleInfo> schedules, (IReadOnlyDictionary<MigrationDocument, string> Targets, string Label)? back = null)
         {
             var ready = discovery.Documents.Where(x => x.ReadyToMigrate).OrderBy(x => x.Name, StringComparer.OrdinalIgnoreCase).ToList();
             var jobs = ready.DistinctBy(x => x.DocumentId).ToDictionary(x => x.DocumentId, x => JobsUsing(x, discovery.Jobs));
@@ -112,6 +116,7 @@ namespace Fis.ReportMigrationOrchestrator.Reporting.Generators
             var keptJobs = JobsKeptRunning(discovery);
             var position = ready.Select((x, i) => (Document: x, i)).ToDictionary(x => x.Document, x => x.i, (IEqualityComparer<MigrationDocument>)ReferenceEqualityComparer.Instance);
             var anchored = new HashSet<MigrationDocument>(ReferenceEqualityComparer.Instance);
+            var documentAnchors = DocumentAnchors(discovery);
             var byTarget = ready
                 .SelectMany(document => Targets(document).Select(target => (Target: target, Document: document)))
                 .GroupBy(x => x.Target, StringComparer.OrdinalIgnoreCase)
@@ -154,7 +159,8 @@ namespace Fis.ReportMigrationOrchestrator.Reporting.Generators
                     if (rewrites > 0) html.Append("<span class='tag tag-impact'>" + Plural(rewrites, "rewrite", "rewrites") + "</span>");
                     if (jobs[document.DocumentId].Count > 0) html.Append("<span class='tag'>" + Plural(jobs[document.DocumentId].Count, "job", "jobs") + "</span>");
                     if (document.IsPersonalFolderDocument) html.Append("<span class='tag'>Personal folder</span>");
-                    html.AppendLine("</summary><div class='doc-body'>" + ConvertingBody(document, jobs[document.DocumentId], schedules, forPrint: false, anchored.Add(document) ? JobsAnchor("c", position[document]) : null) + "</div></details>");
+                    var first = anchored.Add(document);
+                    html.AppendLine("</summary><div class='doc-body'" + (first ? " id='" + documentAnchors[document] + "'" : string.Empty) + ">" + DocumentBackLink(document, documentAnchors[document], back, forPrint: false) + ConvertingBody(document, jobs[document.DocumentId], schedules, forPrint: false, first ? JobsAnchor("c", position[document]) : null) + "</div></details>");
                 }
                 html.AppendLine("</details><div class='print-only print-group'><h4 class='print-group-title'>" + E(group.Key) + " <span class='count'>" + Plural(group.Count(), "report", "reports") + "</span>" + BackLink + "</h4></div></div>");
             }
@@ -163,14 +169,14 @@ namespace Fis.ReportMigrationOrchestrator.Reporting.Generators
             foreach (var document in ready)
             {
                 var rewrites = document.CharSpaceFindings.Sum(f => f.CharSpaceFindingExpressions.Count);
-                html.AppendLine("<tr><td class='report'>" + E(document.Name) + "<div class='muted num'>ID " + document.DocumentId + "</div></td><td class='folder' data-label='Folder'>" + E(document.FolderPath) + "</td><td data-label='Snowflake universe'>" + string.Join("<br/>", Targets(document).Select(E)) + "</td><td class='num' data-label='Expression changes'>" + (rewrites > 0 ? rewrites.ToString() : "<span class='muted'>0</span>") + "</td><td class='num' data-label='Jobs'>" + JobsCell(jobs[document.DocumentId].Count, JobsAnchor("c", position[document])) + "</td></tr>");
+                html.AppendLine("<tr id='" + ListRowAnchor(documentAnchors[document]) + "'><td class='report'>" + E(document.Name) + "<div class='muted num'>ID " + document.DocumentId + "</div></td><td class='folder' data-label='Folder'>" + E(document.FolderPath) + "</td><td data-label='Snowflake universe'>" + string.Join("<br/>", Targets(document).Select(E)) + "</td><td class='num' data-label='Expression changes'>" + (rewrites > 0 ? rewrites.ToString() : "<span class='muted'>0</span>") + "</td><td class='num' data-label='Jobs'>" + JobsCell(jobs[document.DocumentId].Count, JobsAnchor("c", position[document])) + "</td></tr>");
             }
             html.AppendLine("</tbody></table></div></div>");
 
             html.AppendLine("<div class='print-only'><h3 class='card-title'>Details of reports that will convert</h3>");
             foreach (var document in ready)
             {
-                html.AppendLine("<article class='print-doc'><h4 class='print-doc-title'>" + E(document.Name) + "</h4>" + ConvertingBody(document, jobs[document.DocumentId], schedules, forPrint: true, JobsAnchor("c", position[document]) + "-print") + "</article>");
+                html.AppendLine("<article class='print-doc' id='" + documentAnchors[document] + "-print'><h4 class='print-doc-title'>" + E(document.Name) + DocumentBackLink(document, documentAnchors[document], back, forPrint: true) + "</h4>" + ConvertingBody(document, jobs[document.DocumentId], schedules, forPrint: true, JobsAnchor("c", position[document]) + "-print") + "</article>");
             }
             html.AppendLine("</div></section>");
             return html.ToString();
@@ -238,7 +244,7 @@ namespace Fis.ReportMigrationOrchestrator.Reporting.Generators
                 html.AppendLine("<h4>Expression rewrites</h4><p class='note muted'>Trailing spaces inside text values are removed so comparisons still match after the move to Snowflake. Removed spaces are shown as <mark class='sp'>&middot;&middot;&middot;</mark>.</p>");
                 foreach (var finding in document.CharSpaceFindings)
                 {
-                    html.AppendLine("<div class='finding'><div class='finding-type'>" + E(Capitalise(finding.ExpressionType)) + "</div><div class='table-wrap'><table class='rewrites'><thead><tr><th>Where</th><th>Current</th><th>After conversion</th></tr></thead><tbody>");
+                    html.AppendLine("<div class='finding'><div class='finding-type'>" + E(ExpressionTypes.Title(finding.ExpressionType)) + "</div><div class='table-wrap'><table class='rewrites'><thead><tr><th>Where</th><th>Current</th><th>After conversion</th></tr></thead><tbody>");
                     foreach (var expression in finding.CharSpaceFindingExpressions)
                     {
                         html.AppendLine("<tr><td class='where'>" + E(expression.Location?.Trim()) + "</td><td class='mono expr'>" + ShowTrailingSpaces(expression.Expression) + "</td><td class='mono expr'>" + E(expression.ProposedExpression) + "</td></tr>");
@@ -295,7 +301,34 @@ namespace Fis.ReportMigrationOrchestrator.Reporting.Generators
             return "<a class='screen-only' href='#" + anchor + "'>" + count + "</a><a class='print-inline' href='#" + anchor + "-print'>" + count + "</a>";
         }
 
+        // Screen copies sit in a drill-down, so the link is a line of its own; print copies put it beside the title.
+        private static string DocumentBackLink(MigrationDocument document, string documentAnchor, (IReadOnlyDictionary<MigrationDocument, string> Targets, string Label)? back, bool forPrint)
+        {
+            var links = "<a href='#" + ListRowAnchor(documentAnchor) + "'>Back to report list</a>";
+            if (back is { } b && b.Targets.TryGetValue(document, out var target)) links = "<a href='#" + target + "'>" + E(b.Label) + "</a><span aria-hidden='true'> &middot; </span>" + links;
+            return forPrint ? "<span class='back'>" + links + "</span>" : "<p class='doc-back-line'>" + links + "</p>";
+        }
+
         private static string JobsAnchor(string section, int position) { return "jobs-" + section + "-" + position; }
+
+        /// <summary>Id of a document's row in its section's full report list, from its <see cref="DocumentAnchors"/> id.</summary>
+        private static string ListRowAnchor(string documentAnchor) { return "list-" + documentAnchor; }
+
+        /// <summary>
+        /// Id of each document's detail, keyed by reference since DocumentId may repeat: its position in its section's
+        /// name-sorted list. The screen copy has this id (inside the drill-down, which the browser opens on navigation);
+        /// the print copy has it with "-print" appended.
+        /// </summary>
+        public static IReadOnlyDictionary<MigrationDocument, string> DocumentAnchors(MigrationDiscovery discovery)
+        {
+            var anchors = new Dictionary<MigrationDocument, string>(ReferenceEqualityComparer.Instance);
+            foreach (var (section, ready) in new[] { ("nc", false), ("c", true) })
+            {
+                var documents = discovery.Documents.Where(x => x.ReadyToMigrate == ready).OrderBy(x => x.Name, StringComparer.OrdinalIgnoreCase).ToList();
+                for (var i = 0; i < documents.Count; i++) anchors[documents[i]] = "doc-" + section + "-" + i;
+            }
+            return anchors;
+        }
 
         private static IEnumerable<string> Targets(MigrationDocument document)
         {
@@ -351,6 +384,5 @@ namespace Fis.ReportMigrationOrchestrator.Reporting.Generators
             return text;
         }
 
-        private static string Capitalise(string value) { return string.IsNullOrEmpty(value) ? value : char.ToUpperInvariant(value[0]) + value.Substring(1); }
     }
 }

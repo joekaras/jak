@@ -29,6 +29,8 @@ The URLs come from `Properties/launchSettings.json`: https://localhost:60326 and
 - `Program.cs`: DI registration and all endpoints (`/api/discoveries...`, `/api/runs...`).
 - `Core/Abstractions`, `Core/Domain`: interfaces and models in namespace `Fis.ReportMigrationOrchestrator.Core.*`.
   - `ConversionReason.cs`: why a document won't convert (`ReasonCode` first, `StatusMessage` text as fallback).
+  - `ExpressionTypes.cs`: customer names for CHAR finding expression types (`variable definition` shows as
+    "Variable formula").
   - `AuditEventExtensions.cs`: `AuditEvent.Classify()`, the run outcome rule used by `/api/runs` and the PDF.
 - `Core/Stubs`: stand-ins for real services, in namespace `RmoReportingPoc.Core.Stubs`.
   - `InMemoryAuditLogger` seeds two fixed runs: `WaveRunId` and `SmokeRunId`.
@@ -40,9 +42,16 @@ The URLs come from `Properties/launchSettings.json`: https://localhost:60326 and
     `DiscoveryReportSections` (won't convert, then will convert). Shared CSS and helpers are in
     `DiscoveryReportShared`. `/api/discoveries/{id}/report/readiness/pdf` prints that HTML to
     `<stem>-readiness.pdf` and serves it inline.
+  - `HtmlDiscoveryQuickLookGenerator`: the short version of the readiness report
+    (`/api/discoveries/{id}/report/quicklook`, `<stem>-quicklook.html`; `/pdf` prints `<stem>-quicklook.pdf`). Three
+    scan lists come first: documents that won't convert, with folder and reason; documents with whitespace changes;
+    scheduler jobs that use the documents that won't convert. The same `DiscoveryReportSections` follow. Each document
+    name in the lists links to its details, and each of those details links back to its row in the first or second
+    list.
   - `PdfReportGenerator`: the run report PDF (`format=pdf`), printed from `HtmlReportGenerator`'s HTML.
   - `EdgePdfPrinter`: prints an HTML file to PDF with headless Edge, then uses PDFsharp to remove the side-navigation
-    links Chromium repeats on every page. Both PDFs go through it.
+    links Chromium repeats on every page. All three PDFs are printed by it; the quick look skips the link removal
+    because it has no side navigation.
 - `DiscoveryStore.cs`: loads every `Data/*-discovery.json` file once, at startup.
 - `Data/`: sample discovery JSON, copied to the output folder.
 - `docs/`: reference docs — `architecture/SYSTEM_MAP.md`, `data/DISCOVERY_JSON.md` (format of the input files)
@@ -59,13 +68,26 @@ The URLs come from `Properties/launchSettings.json`: https://localhost:60326 and
   `IConfigurationProvider` from colliding with the RMO interface of the same name.
 - JSON responses keep PascalCase property names (`PropertyNamingPolicy = null` in `Program.cs`).
 - Discovery report paths are cached in memory per discovery ID, so they're lost on restart.
-- PDFs (run report and readiness report) are the HTML reports printed by headless Microsoft Edge
+- PDFs (run report, readiness report and quick look) are the HTML reports printed by headless Microsoft Edge
   (`Reporting/Generators/EdgePdfPrinter.cs`), so PDF output works only where Edge is installed (Windows).
 - The readiness report goes to customers as a file. Keep it one self-contained page: inline CSS, no JavaScript, no
   external fonts or images. Collapsed `<details>` don't print, so every drill-down needs a `.print-only` flat copy.
 - Customer wording for each reason lives in the catalogue in `Core/Domain/ConversionReason.cs`; every code has an
   entry, and a new code without one would show as the raw code. The wording is customer-facing and some of it
   commits FIS to act, so review changes with whoever owns the customer relationship.
+- Customer names for CHAR finding expression types live in `Core/Domain/ExpressionTypes.cs`. An uncatalogued type
+  shows as its raw value, capitalised. The names are customer-facing and were written without checking them against
+  BusinessObjects; review changes the same way as the reason wording.
+- Document links between the lists and the details use ids from `DiscoveryReportSections.DocumentAnchors`, based on
+  each document's position in its section's name-sorted list, because `DocumentId` can repeat. The id goes on the
+  first drill-down the document appears in (the browser opens it when a link is followed), and the same id with
+  `-print` on the end goes on the flat print copy, so a link to a document needs a screen version and a print
+  version.
+- Every document's details link back to its row in the full report list ("Back to report list"). The optional
+  `back` argument of `NotConverting` and `Converting` adds one more link in front of it; the quick look uses it for
+  "Back to quick look".
+- Print rules keep rows of the full report lists and of the quick-look tables on one page
+  (`break-inside:avoid`). Without them, a long row splits across two pages.
 - A running Visual Studio debug session locks `bin\`. To check a build without stopping it, use
   `dotnet build RmoReportingPoc.csproj -p:OutDir=<scratch folder>\`.
 

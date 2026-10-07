@@ -198,6 +198,8 @@ details > summary:hover .summary-title { text-decoration:underline; text-underli
 dl.facts { display:grid; grid-template-columns:max-content 1fr; gap:4px 16px; margin:4px 0 8px; }
 dl.facts dt { color:var(--muted); } dl.facts dd { margin:0; }
 mark.sp { background:var(--impact-tint); color:var(--impact); border-radius:2px; padding:0 1px; }
+.doc-back-line { margin:0 0 4px; text-align:right; font-size:12.5px; }
+tbody tr:target td { background:var(--impact-tint); }
 footer { text-align:center; color:var(--muted); font-size:12px; margin:18px 0 4px; }
 @media (max-width:720px) {
   body { padding:12px; font-size:14px; } .page-head { padding:18px 16px; } .page-head h1 { font-size:21px; } .card { padding:14px; } .doc-body { padding-left:0; } th, td { padding:7px 8px; }
@@ -217,9 +219,10 @@ footer { text-align:center; color:var(--muted); font-size:12px; margin:18px 0 4p
   .page-head, .tag, mark.sp, .bar span, .impact, .key, .callout { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
   .report-section { break-before:page; margin-top:0; } .report-section-empty { break-before:auto; margin-top:24px; }
   .drill, .screen-only { display:none; } .print-only { display:block; } .print-inline { display:inline; }
-  .appendix { break-inside:auto; } .appendix .folder { min-width:30%; } .appendix td.report { overflow-wrap:anywhere; }
+  .appendix { break-inside:auto; } .appendix tr { break-inside:avoid; } .appendix .folder { min-width:30%; } .appendix td.report { overflow-wrap:anywhere; }
   .print-group { break-inside:avoid; margin-bottom:8px; } .print-group-title { margin:12px 0 4px; font-size:14px; display:flex; align-items:baseline; gap:8px; }
   .print-doc { break-inside:avoid-page; border-top:1px solid var(--line); padding-top:6px; } .print-doc-title { font-size:14px; margin:10px 0 2px; }
+  .print-doc-title { display:flex; align-items:baseline; gap:8px; } .doc-back-line { display:none; }
   a { color:inherit; text-decoration:none; }
 }
 ";

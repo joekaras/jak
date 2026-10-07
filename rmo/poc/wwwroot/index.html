@@ -66,6 +66,8 @@ async function loadDiscoveries() {
         <a class="btn" href="/api/discoveries/${d.Id}/report/view" target="_blank">View</a>
         <a class="btn btn-solid" href="/api/discoveries/${d.Id}/report/readiness" target="_blank">Readiness report</a>
         <a class="btn btn-solid" href="/api/discoveries/${d.Id}/report/readiness/pdf" target="_blank">Readiness PDF</a>
+        <a class="btn btn-solid" href="/api/discoveries/${d.Id}/report/quicklook" target="_blank">Quick look</a>
+        <a class="btn btn-solid" href="/api/discoveries/${d.Id}/report/quicklook/pdf" target="_blank">Quick look PDF</a>
       </td>`;
     rows.appendChild(tr);
   }

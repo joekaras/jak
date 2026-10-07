@@ -23,6 +23,7 @@ builder.Services.AddSingleton<IReportGenerator, PdfReportGenerator>();
 builder.Services.AddSingleton<IReportGenerator, ExcelReportGenerator>();
 builder.Services.AddSingleton<IDiscoveryReportGenerator, HtmlDiscoveryReportGenerator>();
 builder.Services.AddSingleton<HtmlDiscoveryDashboardGenerator>();
+builder.Services.AddSingleton<HtmlDiscoveryQuickLookGenerator>();
 
 var app = builder.Build();
 
@@ -108,6 +109,37 @@ app.MapGet("/api/discoveries/{id:guid}/report/readiness/pdf", async (Guid id, Di
     var pdfPath = Path.ChangeExtension(htmlPath, ".pdf");
     await EdgePdfPrinter.PrintAsync(htmlPath, pdfPath, cancellationToken);
     EdgePdfPrinter.RemoveRepeatedLinks(pdfPath);
+    var bytes = await File.ReadAllBytesAsync(pdfPath, cancellationToken);
+    context.Response.Headers.ContentDisposition = $"inline; filename=\"{Path.GetFileName(pdfPath)}\"";
+    return Results.File(bytes, "application/pdf");
+});
+
+// Quick look: scan lists of what won't convert, what changes and which jobs are affected, then the readiness detail sections.
+app.MapGet("/api/discoveries/{id:guid}/report/quicklook", async (Guid id, DiscoveryStore store, HtmlDiscoveryQuickLookGenerator generator, CancellationToken cancellationToken) =>
+{
+    var discovery = store.Get(id);
+    if (discovery is null)
+    {
+        return Results.NotFound();
+    }
+
+    var path = await generator.GenerateAsync(discovery, cancellationToken);
+    var html = await File.ReadAllTextAsync(path, cancellationToken);
+    return Results.Content(html, "text/html");
+});
+
+// Regenerates the quick-look HTML, prints it next to itself as <stem>-quicklook.pdf, and shows it inline.
+app.MapGet("/api/discoveries/{id:guid}/report/quicklook/pdf", async (Guid id, DiscoveryStore store, HtmlDiscoveryQuickLookGenerator generator, HttpContext context, CancellationToken cancellationToken) =>
+{
+    var discovery = store.Get(id);
+    if (discovery is null)
+    {
+        return Results.NotFound();
+    }
+
+    var htmlPath = await generator.GenerateAsync(discovery, cancellationToken);
+    var pdfPath = Path.ChangeExtension(htmlPath, ".pdf");
+    await EdgePdfPrinter.PrintAsync(htmlPath, pdfPath, cancellationToken);
     var bytes = await File.ReadAllBytesAsync(pdfPath, cancellationToken);
     context.Response.Headers.ContentDisposition = $"inline; filename=\"{Path.GetFileName(pdfPath)}\"";
     return Results.File(bytes, "application/pdf");
