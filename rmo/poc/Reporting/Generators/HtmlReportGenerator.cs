@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -68,78 +69,56 @@ namespace Fis.ReportMigrationOrchestrator.Reporting.Generators
             var html = new StringBuilder();
             html.AppendLine("<!DOCTYPE html><html lang='en'><head><meta charset='utf-8'/><meta name='viewport' content='width=device-width, initial-scale=1'/>");
             html.AppendLine("<title>Migration run report - " + E(runId.ToString()) + "</title>");
-            html.AppendLine("<style>" + Css + HtmlDiscoveryDashboardGenerator.LocalCss + LocalCss + "</style></head><body>");
-            html.AppendLine("<header class='page-head'><h1>Migration run report</h1><p class='meta'>Run <span class='num'>" + E(runId.ToString()) + "</span>"
-                + " <span aria-hidden='true'>&middot;</span> Started " + (started is null ? "not recorded" : E(Date(started.Timestamp)) + " UTC")
-                + " <span aria-hidden='true'>&middot;</span> " + (completed is null ? "Not completed" : "Completed " + E(Date(completed.Timestamp)) + " UTC")
-                + (started is not null && completed is not null ? " <span aria-hidden='true'>&middot;</span> " + Plural((int)Math.Round((completed.Timestamp - started.Timestamp).TotalMinutes), "minute", "minutes") : string.Empty)
-                + "</p></header>");
+            // Internal report for service delivery and developers: a dense log with its own look, not the customer one.
+            html.AppendLine("<style>" + Css + LocalCss + "</style></head><body class='ops'>");
+            html.AppendLine("<header id='summary' class='ops-head'><h1>Migration run report</h1>"
+                + "<p class='ops-counts'>" + Severity(AuditOutcome.Failed, failed.Count) + " <span aria-hidden='true'>&middot;</span> " + Severity(AuditOutcome.Skipped, skipped.Count) + " <span aria-hidden='true'>&middot;</span> " + Severity(AuditOutcome.Migrated, migrated) + " <span class='muted'>of " + Plural(objects.Count, "object", "objects") + "</span></p>"
+                + "<dl class='kv'><div><dt>Run</dt><dd class='mono'>" + E(runId.ToString()) + "</dd></div>"
+                + "<div><dt>Started</dt><dd class='mono'>" + (started is null ? "not recorded" : E(Iso(started.Timestamp))) + "</dd></div>"
+                + "<div><dt>Completed</dt><dd class='mono'>" + (completed is null ? "not completed" : E(Iso(completed.Timestamp))) + "</dd></div>"
+                + (started is not null && completed is not null ? "<div><dt>Duration</dt><dd class='mono'>" + E(Duration(completed.Timestamp - started.Timestamp)) + "</dd></div>" : string.Empty)
+                + "</dl></header><main>");
 
-            html.AppendLine("<div class='shell'><nav class='toc' aria-label='Contents'><p class='toc-title'>Contents</p><ul>"
-                + "<li><a href='#summary'>Summary</a></li>"
-                + "<li><a href='#failed'>Failed <span class='muted'>" + failed.Count + "</span></a></li>"
-                + "<li><a href='#skipped'>Skipped <span class='muted'>" + skipped.Count + "</span></a></li>"
-                + "<li><a href='#events'>All events <span class='muted'>" + events.Count + "</span></a></li></ul></nav><main>");
+            // Failures first, then skips: what to raise or trace, with the full error.
+            var attention = failed.Concat(skipped).ToList();
+            html.AppendLine("<section id='attention' aria-labelledby='attention-title'><h2 id='attention-title'>Needs attention <span class='count'>" + attention.Count + "</span></h2>");
+            if (attention.Count == 0)
+            {
+                html.AppendLine("<p class='muted'>Nothing failed or was skipped in this run.</p>");
+            }
+            else
+            {
+                html.AppendLine("<div class='table-wrap'><table class='log'><thead><tr><th>Outcome</th><th>Time (UTC)</th><th>Object</th><th>Reason</th><th>Error</th></tr></thead><tbody>");
+                foreach (var item in attention)
+                {
+                    var reasons = ConversionReasons.FromMessage(item.ErrorMessage);
+                    var what = reasons.Count > 0 ? string.Join(", ", reasons.Select(code => E(ConversionReasons.Get(code).Title))) : "<span class='muted'>Not recognised</span>";
+                    html.AppendLine("<tr class='" + RowClass(item.Classify()) + "'><td>" + Severity(item.Classify(), null) + "</td><td class='mono'>" + E(Time(item.Timestamp)) + "</td><td>" + E(item.ObjectType) + " <span class='mono'>" + E(item.ObjectId) + "</span></td><td>" + what + "</td><td class='mono err'>" + E(item.ErrorMessage) + "</td></tr>");
+                }
+                html.AppendLine("</tbody></table></div>");
+            }
+            html.AppendLine("</section>");
 
-            // Impact strip: what needs attention after this run.
-            html.AppendLine(failed.Count > 0
-                ? "<section id='summary' class='impact' aria-labelledby='impact-title'>" + HtmlDiscoveryDashboardGenerator.AlertIcon + "<div><h2 id='impact-title'><span class='figure'>" + Plural(failed.Count, "object", "objects") + "</span> failed to migrate</h2><p>" + (skipped.Count > 0 ? Plural(skipped.Count, "object was", "objects were") + " skipped. " : string.Empty) + "Each failure is listed below with the error the run reported.</p></div></section>"
-                : "<section id='summary' class='impact impact-clear' aria-labelledby='impact-title'>" + HtmlDiscoveryDashboardGenerator.CheckIcon + "<div><h2 id='impact-title'>No objects failed in this run</h2><p>" + (skipped.Count > 0 ? Plural(skipped.Count, "object was", "objects were") + " skipped; see below." : "Every object in the run migrated.") + "</p></div></section>");
-
-            // Outcome split and per-type counts, side by side.
-            html.AppendLine("<div class='layout layout-clear'><div class='side'>");
-            html.AppendLine("<section class='card readiness'><h2>Outcome</h2>");
-            html.AppendLine("<p class='split-line'><span class='figure big'>" + migrated + "</span> of " + Plural(objects.Count, "object", "objects") + " migrated</p>");
-            html.AppendLine("<div class='bar' role='img' aria-label='" + migrated + " migrated, " + skipped.Count + " skipped, " + failed.Count + " failed'>");
-            if (migrated > 0) html.Append("<span class='bar-ok' style='flex:" + migrated + "'></span>");
-            if (skipped.Count > 0) html.Append("<span class='bar-skip' style='flex:" + skipped.Count + "'></span>");
-            if (failed.Count > 0) html.Append("<span class='bar-fail' style='flex:" + failed.Count + "'></span>");
-            html.AppendLine("</div><ul class='legend'>"
-                + "<li><i class='key key-ok'></i><span class='figure'>" + migrated + "</span> migrated <span class='muted'>" + Percent(migrated, objects.Count) + "</span></li>"
-                + "<li><i class='key key-skip'></i><span class='figure'>" + skipped.Count + "</span> skipped <span class='muted'>" + Percent(skipped.Count, objects.Count) + "</span></li>"
-                + "<li><i class='key key-fail'></i><span class='figure'>" + failed.Count + "</span> failed <span class='muted'>" + Percent(failed.Count, objects.Count) + "</span></li></ul></section>");
-
-            html.AppendLine("<section class='card'><h2>By object type</h2><div class='table-wrap'><table><thead><tr><th>Type</th><th class='num'>Migrated</th><th class='num'>Skipped</th><th class='num'>Failed</th></tr></thead><tbody>");
+            html.AppendLine("<section id='types' aria-labelledby='types-title'><h2 id='types-title'>By object type</h2><div class='table-wrap'><table class='log types'><thead><tr><th>Type</th><th class='num'>Migrated</th><th class='num'>Skipped</th><th class='num'>Failed</th></tr></thead><tbody>");
             foreach (var type in objects.GroupBy(x => x.ObjectType, StringComparer.OrdinalIgnoreCase).OrderBy(x => x.Key, StringComparer.OrdinalIgnoreCase))
             {
                 html.AppendLine("<tr><td>" + E(type.Key) + "</td><td class='num'>" + Count(type, AuditOutcome.Migrated) + "</td><td class='num'>" + Count(type, AuditOutcome.Skipped) + "</td><td class='num'>" + Count(type, AuditOutcome.Failed) + "</td></tr>");
             }
-            html.AppendLine("</tbody></table></div></section></div></div>");
+            html.AppendLine("</tbody></table></div></section>");
 
-            html.Append(Problems("failed", "Failed", "key-fail", failed, "No objects failed in this run."));
-            html.Append(Problems("skipped", "Skipped", "key-skip", skipped, "No objects were skipped in this run."));
-
-            html.AppendLine("<section class='run-section' id='events' aria-labelledby='events-title'><h2 class='section-head' id='events-title'>All events <span class='count'>" + events.Count + "</span>" + BackLink + "</h2>");
-            html.AppendLine("<div class='card'><div class='table-wrap'><table><thead><tr><th>Time (UTC)</th><th>Event</th><th>Object</th><th>Outcome</th><th>Details</th></tr></thead><tbody>");
+            html.AppendLine("<section id='events' aria-labelledby='events-title'><h2 id='events-title'>All events <span class='count'>" + events.Count + "</span>" + BackLink + "</h2>");
+            html.AppendLine("<div class='table-wrap'><table class='log'><thead><tr><th>Time (UTC)</th><th>Event</th><th>Object</th><th>Outcome</th><th>Details</th></tr></thead><tbody>");
             foreach (var auditEvent in events)
             {
-                html.AppendLine("<tr><td class='num'>" + E(auditEvent.Timestamp.UtcDateTime.ToString("HH:mm:ss")) + "</td><td>" + E(Humanize(auditEvent.EventType)) + "</td><td>" + E(auditEvent.ObjectType) + " <span class='muted num'>" + E(auditEvent.ObjectId) + "</span></td><td>" + OutcomeTag(auditEvent.Classify()) + "</td><td class='detail'>" + E(auditEvent.ErrorMessage) + "</td></tr>");
+                var outcome = auditEvent.Classify();
+                html.AppendLine("<tr class='" + RowClass(outcome) + "'><td class='mono'>" + E(Time(auditEvent.Timestamp)) + "</td><td>" + E(Humanize(auditEvent.EventType)) + "</td><td>" + E(auditEvent.ObjectType) + " <span class='mono'>" + E(auditEvent.ObjectId) + "</span></td><td>" + Severity(outcome, null) + "</td><td class='mono err'>" + E(auditEvent.ErrorMessage) + "</td></tr>");
             }
-            html.AppendLine("</tbody></table></div></div></section>");
+            html.AppendLine("</tbody></table></div></section>");
 
-            html.AppendLine("</main></div>");
+            html.AppendLine("</main>");
             html.AppendLine("<footer>Generated " + E(Date(DateTimeOffset.UtcNow)) + " UTC from run <span class='num'>" + E(runId.ToString()) + "</span></footer>");
             html.AppendLine("</body></html>");
             return html.ToString();
-        }
-
-        // Failed or skipped objects with the reason wording the readiness report uses, when the message is recognised.
-        private static string Problems(string id, string title, string key, IReadOnlyList<AuditEvent> items, string emptyText)
-        {
-            var html = new StringBuilder();
-            html.AppendLine("<section class='run-section' id='" + id + "' aria-labelledby='" + id + "-title'><h2 class='section-head' id='" + id + "-title'><i class='key " + key + "' aria-hidden='true'></i>" + E(title) + " <span class='count'>" + items.Count + "</span>" + BackLink + "</h2>");
-            if (items.Count == 0)
-            {
-                return html.AppendLine("<div class='card'><p class='muted'>" + E(emptyText) + "</p></div></section>").ToString();
-            }
-            html.AppendLine("<div class='card'><div class='table-wrap'><table><thead><tr><th>Object</th><th>Time (UTC)</th><th>What happened</th></tr></thead><tbody>");
-            foreach (var item in items)
-            {
-                var reasons = ConversionReasons.FromMessage(item.ErrorMessage);
-                var what = reasons.Count > 0 ? string.Join(", ", reasons.Select(code => E(ConversionReasons.Get(code).Title))) : "<span class='muted'>Not recognised</span>";
-                html.AppendLine("<tr><td>" + E(item.ObjectType) + " <span class='muted num'>" + E(item.ObjectId) + "</span></td><td class='num'>" + E(item.Timestamp.UtcDateTime.ToString("HH:mm:ss")) + "</td><td>" + what + (string.IsNullOrWhiteSpace(item.ErrorMessage) ? string.Empty : "<div class='tech'><p class='mono'>" + E(item.ErrorMessage) + "</p></div>") + "</td></tr>");
-            }
-            return html.AppendLine("</tbody></table></div></div></section>").ToString();
         }
 
         private static string Count(IEnumerable<AuditEvent> events, AuditOutcome outcome)
@@ -148,16 +127,28 @@ namespace Fis.ReportMigrationOrchestrator.Reporting.Generators
             return count == 0 ? "<span class='muted'>0</span>" : count.ToString();
         }
 
-        private static string OutcomeTag(AuditOutcome outcome)
+        // Severity is carried by the word and its weight. Only failures get a status colour, so migrated and skipped
+        // don't borrow the readiness report's green and amber, which mean "converts" and "impact" there.
+        private static string Severity(AuditOutcome outcome, int? count)
         {
-            return outcome switch
+            var (label, css) = outcome switch
             {
-                AuditOutcome.Migrated => "<span class='tag tag-ok'>Migrated</span>",
-                AuditOutcome.Skipped => "<span class='tag tag-impact'>Skipped</span>",
-                AuditOutcome.Failed => "<span class='tag tag-fail'>Failed</span>",
-                _ => "<span class='tag'>Run</span>"
+                AuditOutcome.Failed => ("Failed", "sev sev-fail"),
+                AuditOutcome.Skipped => ("Skipped", "sev sev-skip"),
+                AuditOutcome.Migrated => ("Migrated", "sev"),
+                _ => ("Run", "sev muted")
             };
+            return "<span class='" + css + "'>" + label + (count is null ? string.Empty : " <span class='num'>" + count + "</span>") + "</span>";
         }
+
+        private static string RowClass(AuditOutcome outcome)
+        {
+            return outcome switch { AuditOutcome.Failed => "row-fail", AuditOutcome.Skipped => "row-skip", _ => string.Empty };
+        }
+
+        private static string Iso(DateTimeOffset value) { return value.UtcDateTime.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture); }
+        private static string Time(DateTimeOffset value) { return value.UtcDateTime.ToString("HH:mm:ss", CultureInfo.InvariantCulture); }
+        private static string Duration(TimeSpan value) { return ((int)value.TotalHours > 0 ? (int)value.TotalHours + "h " : string.Empty) + value.Minutes.ToString("00", CultureInfo.InvariantCulture) + "m " + value.Seconds.ToString("00", CultureInfo.InvariantCulture) + "s"; }
 
         // "DocumentMigrated" -> "Document migrated".
         private static string Humanize(string eventType)
@@ -167,12 +158,23 @@ namespace Fis.ReportMigrationOrchestrator.Reporting.Generators
         }
 
         private const string LocalCss = @"
-.bar-skip { background:var(--impact-fill); } .key-skip { background:var(--impact-fill); }
-.run-section { margin-top:28px; }
-.run-section .section-head { font-size:18px; }
-td.detail { color:var(--muted); font-size:12.5px; word-break:break-word; }
-.tech { margin-top:4px; } .tech p { margin:4px 0 0; }
-@media print { .bar-skip, .key-skip { -webkit-print-color-adjust:exact; print-color-adjust:exact; } .run-section { break-inside:auto; } }
+body.ops { background:#fff; max-width:1280px; font-size:13px; }
+.ops-head { border-bottom:2px solid var(--ink); padding-bottom:10px; margin-bottom:18px; }
+.ops-head h1 { font-size:18px; margin:0 0 4px; font-weight:600; }
+.ops-counts { margin:0 0 8px; font-size:14px; }
+.kv { display:flex; flex-wrap:wrap; gap:4px 22px; margin:0; font-size:12.5px; }
+.kv div { display:flex; gap:6px; } .kv dt { color:var(--muted); } .kv dd { margin:0; word-break:break-all; }
+.ops section { margin-bottom:22px; }
+.ops h2 { font-size:14px; color:var(--ink); display:flex; align-items:center; gap:8px; margin:0 0 6px; }
+.sev { font-weight:600; } .sev-fail { color:var(--fail); } .sev-skip { color:var(--ink); }
+table.log th, table.log td { padding:4px 8px; font-size:12.5px; }
+table.log .mono { font-size:12px; white-space:nowrap; }
+table.log td.err { white-space:normal; word-break:break-word; color:var(--muted); }
+table.log tr.row-fail td { background:var(--fail-tint); } table.log tr.row-fail td.err { color:var(--ink); }
+table.log tr.row-skip td { background:var(--bg); }
+table.types { width:auto; min-width:360px; }
+@page { size:landscape; margin:10mm; }
+@media print { body.ops { font-size:12px; } table.log thead { display:table-header-group; } table.log tr { break-inside:avoid; } table.log tr.row-fail td, table.log tr.row-skip td { -webkit-print-color-adjust:exact; print-color-adjust:exact; } }
 ";
     }
 }

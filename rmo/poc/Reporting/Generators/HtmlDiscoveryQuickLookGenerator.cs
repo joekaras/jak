@@ -63,7 +63,8 @@ namespace Fis.ReportMigrationOrchestrator.Reporting.Generators
             // id 'summary' is where the detail sections' "Back to summary" links land.
             html.AppendLine("<main><div id='summary' class='quick'>");
 
-            // 1. Documents that won't convert, and why.
+            // 1. Documents that won't convert, as a checklist grouped by reason: the customer's own actions first, then the
+            // reasons to consult FIS about. A document with two reasons is listed under both; its row id goes on the first.
             html.AppendLine("<section class='card' aria-labelledby='q-fail'><h2 id='q-fail'><i class='key key-fail' aria-hidden='true'></i>Documents that will not convert <span class='count'>" + notReady.Count + "</span>" + (notReady.Count > 0 ? DetailsLink("#" + DiscoveryReportSections.NotConvertingId) : string.Empty) + "</h2>");
             if (notReady.Count == 0)
             {
@@ -71,12 +72,29 @@ namespace Fis.ReportMigrationOrchestrator.Reporting.Generators
             }
             else
             {
-                html.AppendLine("<div class='table-wrap'><table><thead><tr><th>Document</th><th>Folder</th><th>Reason</th></tr></thead><tbody>");
-                foreach (var (document, reasons) in notReady)
+                var groups = notReady
+                    .SelectMany(x => x.Reasons.Select(code => (Code: code, x.Document)))
+                    .GroupBy(x => x.Code, StringComparer.OrdinalIgnoreCase)
+                    .Select(g => (Code: g.Key, Reason: ConversionReasons.Get(g.Key), Documents: g.Select(x => x.Document).ToList()))
+                    .OrderBy(g => IsCustomerAction(g.Reason) ? 0 : 1)
+                    .ThenByDescending(g => g.Documents.Count)
+                    .ThenBy(g => g.Reason.Title, StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+                var listed = new HashSet<MigrationDocument>(ReferenceEqualityComparer.Instance);
+                html.AppendLine("<p class='explain muted'>Grouped by what to do. Tick each document off once it is fixed, rebuilt or retired. A document with more than one reason is listed under each.</p>");
+                foreach (var (code, reason, documents) in groups)
                 {
-                    html.AppendLine("<tr id='" + rows[document] + "'><td class='doc-cell'>" + DocumentLink(document, anchors) + TypeTag(document) + "</td><td class='folder'>" + E(document.FolderPath) + "</td><td>" + string.Join("<br/>", reasons.Select(code => "<a href='#" + ReasonAnchor(code) + "'>" + E(ConversionReasons.Get(code).Title) + "</a>")) + "</td></tr>");
+                    var customer = IsCustomerAction(reason);
+                    html.AppendLine("<div class='todo'><h3 class='todo-head'><span class='owner'>" + (customer ? "Your team" : "Consult with FIS") + "</span><a href='#" + ReasonAnchor(code) + "'>" + E(reason.Title) + "</a><span class='count'>" + documents.Count + "</span></h3>");
+                    html.AppendLine("<p class='todo-action'>" + (customer ? E(reason.Action) : ConsultFisText) + "</p>");
+                    html.AppendLine("<div class='table-wrap'><table><thead><tr><th class='tick' aria-label='Done'></th><th>Document</th><th>Folder</th><th class='num'>Jobs</th></tr></thead><tbody>");
+                    foreach (var document in documents)
+                    {
+                        var jobCount = JobsUsing(document, discovery.Jobs).Select(j => j.Job.JobId).Distinct().Count();
+                        html.AppendLine("<tr" + (listed.Add(document) ? " id='" + rows[document] + "'" : string.Empty) + "><td class='tick'><span class='box' aria-hidden='true'></span></td><td class='doc-cell'>" + DocumentLink(document, anchors) + TypeTag(document) + "<div class='muted doc-id'>ID <span class='num'>" + document.DocumentId + "</span></div></td><td class='folder'>" + E(document.FolderPath) + "</td><td class='num'>" + (jobCount == 0 ? "<span class='muted'>0</span>" : "<span class='tag tag-impact'>" + jobCount + "</span>") + "</td></tr>");
+                    }
+                    html.AppendLine("</tbody></table></div></div>");
                 }
-                html.AppendLine("</tbody></table></div>");
             }
             html.AppendLine("</section>");
 
@@ -154,6 +172,12 @@ namespace Fis.ReportMigrationOrchestrator.Reporting.Generators
 
         private static string DetailsLink(string href) { return "<a class='back' href='" + href + "'>Details</a>"; }
 
+        // Reasons the catalogue gives to FIS (or to no one) are worded as "consult FIS", not as what FIS will do, so the
+        // quick look makes no commitment on FIS's behalf. The readiness report still shows the catalogue wording.
+        private static bool IsCustomerAction(ConversionReason reason) { return string.Equals(reason.ActionOwner, "Customer", StringComparison.OrdinalIgnoreCase); }
+
+        private const string ConsultFisText = "Talk to your FIS contact about these documents before you change or retire them. FIS needs to look into them with you to decide what happens next.";
+
         // Enabled schedules first, then disabled ones, then on-demand jobs (same order as the readiness report).
         private static int Rank(JobInfo job, IReadOnlyDictionary<string, ScheduleInfo> schedules)
         {
@@ -169,8 +193,14 @@ namespace Fis.ReportMigrationOrchestrator.Reporting.Generators
 .quick .rel { font-size:12px; }
 .quick .change { white-space:nowrap; }
 .quick .explain { margin:0 0 10px; }
+.quick .todo { border-top:1px solid var(--line); padding-top:14px; margin-top:14px; }
+.quick .todo-head { display:flex; align-items:baseline; flex-wrap:wrap; gap:8px; font-size:14px; font-weight:600; margin:0 0 6px; }
+.quick .owner { padding:1px 8px; border-radius:999px; background:var(--bg); color:var(--muted); font-size:11.5px; font-weight:600; }
+.quick .todo-action { margin:0 0 8px; padding:8px 12px; background:var(--bg); border-radius:6px; max-width:90ch; }
+.quick .tick { width:28px; } .quick .box { display:inline-block; width:12px; height:12px; border:1.5px solid var(--muted); border-radius:2px; vertical-align:-1px; }
+.quick .doc-id { font-size:12px; font-weight:400; }
 @page { size:landscape; margin:12mm; }
-@media print { .quick .card { break-inside:auto; } .quick h2, .quick .explain { break-after:avoid; } .quick tr { break-inside:avoid; } .quick .key { -webkit-print-color-adjust:exact; print-color-adjust:exact; } .quick thead { display:table-header-group; } }
+@media print { .quick .card { break-inside:auto; } .quick h2, .quick .explain, .quick .todo-head, .quick .todo-action { break-after:avoid; } .quick tr { break-inside:avoid; } .quick .key { -webkit-print-color-adjust:exact; print-color-adjust:exact; } .quick thead { display:table-header-group; } }
 ";
     }
 }

@@ -70,7 +70,7 @@ namespace Fis.ReportMigrationOrchestrator.Reporting.Generators
             html.AppendLine("<style>" + Css + LocalCss + "</style></head><body>");
             html.AppendLine(Header("Report migration readiness", discovery));
             html.AppendLine("<div class='shell'>" + Contents(reasons, notReady.Count, ready.Count) + "<main>");
-            html.AppendLine(ExecutiveSummary(total, ready.Count, notReady.Count, affected.Count, affectedSchedules.Count, enabledSchedules, keptJobs, reasons));
+            html.AppendLine(SignOff(total, ready.Count, notReady, affected.Count, affectedSchedules.Count, enabledSchedules, keptJobs, reasons));
 
             // Impact strip: what stops running for the bank.
             if (affected.Count > 0)
@@ -170,28 +170,61 @@ namespace Fis.ReportMigrationOrchestrator.Reporting.Generators
             return html.ToString();
         }
 
-        // Cover page: the position in a few sentences, then who acts on which reason, customer first.
-        private static string ExecutiveSummary(int total, int ready, int notReady, int affectedJobs, int affectedSchedules, int enabledSchedules, int keptJobs, IReadOnlyList<(string Code, int Count)> reasons)
+        // Cover page, printed as page 1: the verdict, the figures behind it, the decisions the bank owns and a sign-off
+        // block. Everything after it is the supporting detail.
+        private static string SignOff(int total, int ready, IReadOnlyList<(MigrationDocument Document, IReadOnlyList<string> Reasons)> notReady, int affectedJobs, int affectedSchedules, int enabledSchedules, int keptJobs, IReadOnlyList<(string Code, int Count)> reasons)
         {
+            var (isReady, headline) = Verdict(total, notReady.Count, affectedJobs, enabledSchedules);
+            // A report with both kinds of reason counts in both figures.
+            var customerReports = notReady.Count(x => x.Reasons.Any(IsCustomerAction));
+            var fisReports = notReady.Count(x => x.Reasons.Any(code => !IsCustomerAction(code)));
+            var customerReasons = reasons.Where(x => IsCustomerAction(x.Code)).ToList();
+            var fisReasons = reasons.Where(x => !IsCustomerAction(x.Code)).ToList();
+
             var html = new StringBuilder();
             html.AppendLine("<section class='card exec' aria-labelledby='exec-title'><h2 id='exec-title'>Executive summary</h2>");
-            html.AppendLine("<p class='exec-lede'>" + ExecutiveNarrative(total, ready, notReady, affectedJobs, affectedSchedules, enabledSchedules, keptJobs, reasons) + "</p>");
-            if (reasons.Count > 0)
+            html.AppendLine("<div class='verdict " + (isReady ? "verdict-ok" : "verdict-fail") + "'><p class='verdict-title'>" + E(headline) + "</p><p>" + ExecutiveNarrative(total, ready, notReady.Count, affectedJobs, affectedSchedules, enabledSchedules, keptJobs, reasons) + "</p></div>");
+            html.AppendLine("<dl class='memo-figs'>"
+                + "<div><dt class='figure ok-ink'>" + ready + "</dt><dd>reports convert</dd></div>"
+                + "<div><dt class='figure fail-ink'>" + notReady.Count + "</dt><dd>will not convert</dd></div>"
+                + "<div><dt class='figure'>" + customerReports + "</dt><dd>need action by your team</dd></div>"
+                + "<div><dt class='figure'>" + fisReports + "</dt><dd>to discuss with FIS</dd></div></dl>");
+            if (customerReasons.Count > 0)
             {
-                html.AppendLine("<h3>Next steps</h3><ul class='steps'>");
-                var byOwner = reasons
-                    .GroupBy(x => string.IsNullOrWhiteSpace(ConversionReasons.Get(x.Code).ActionOwner) ? "Not set" : ConversionReasons.Get(x.Code).ActionOwner)
-                    .OrderBy(x => x.Key == "Customer" ? 0 : x.Key == "FIS" ? 1 : 2)
-                    .ThenBy(x => x.Key, StringComparer.OrdinalIgnoreCase);
-                foreach (var owner in byOwner)
+                html.AppendLine("<h3>Decisions for your team</h3><ol class='decisions'>");
+                foreach (var (code, count) in customerReasons)
                 {
-                    html.AppendLine("<li><span class='owner'>" + E(owner.Key) + "</span><span>" + string.Concat(owner.Select(x => "<span class='item'><a href='#" + ReasonAnchor(x.Code) + "'>" + E(ConversionReasons.Get(x.Code).Title) + "</a> <span class='muted'>" + Plural(x.Count, "report", "reports") + "</span></span>")) + "</span></li>");
+                    html.AppendLine("<li><a href='#" + ReasonAnchor(code) + "'>" + E(ConversionReasons.Get(code).Title) + "</a> <span class='muted'>" + Plural(count, "report", "reports") + "</span><span class='action'>" + E(ConversionReasons.Get(code).Action) + "</span></li>");
                 }
-                html.AppendLine("</ul>");
+                html.AppendLine("</ol>");
             }
+            if (fisReasons.Count > 0)
+            {
+                html.AppendLine("<h3>To discuss with FIS</h3><ul class='decisions'>" + string.Concat(fisReasons.Select(x => "<li><a href='#" + ReasonAnchor(x.Code) + "'>" + E(ConversionReasons.Get(x.Code).Title) + "</a> <span class='muted'>" + Plural(x.Count, "report", "reports") + "</span></li>")) + "</ul>");
+            }
+            html.AppendLine("<p class='note muted'>The pages that follow give the detail: the summary, then every report that will not convert and every report that will.</p>");
+            html.AppendLine("<h3>Sign-off</h3><div class='sign'><div>Name</div><div>Role</div><div>Date</div><div>Signature</div></div>");
             html.AppendLine("</section>");
             return html.ToString();
         }
+
+        // Impact-based: a wave is ready when no Report Scheduler job uses a report that won't convert, even if some
+        // reports won't convert, because nothing the bank runs breaks at cut-over. An empty discovery is never ready.
+        private static (bool Ready, string Headline) Verdict(int total, int notReady, int affectedJobs, int enabledSchedules)
+        {
+            if (total == 0) return (false, "Not ready for cut-over: no reports were discovered");
+            if (affectedJobs > 0)
+            {
+                return (false, "Not ready for cut-over: " + Plural(affectedJobs, "job uses", "jobs use") + " reports that will not convert"
+                    + (enabledSchedules > 0 ? " (" + Plural(enabledSchedules, "enabled schedule", "enabled schedules") + ")" : string.Empty));
+            }
+            return (true, notReady == 0
+                ? "Ready for cut-over"
+                : "Ready for cut-over: no jobs depend on the " + Plural(notReady, "report", "reports") + " that will not convert");
+        }
+
+        // Reasons with no customer owner (FIS, or not catalogued) are ones to discuss with FIS.
+        private static bool IsCustomerAction(string code) { return string.Equals(ConversionReasons.Get(code).ActionOwner, "Customer", StringComparison.OrdinalIgnoreCase); }
 
         // Returns HTML: encode any text that comes from data (reason titles) with E().
         private static string ExecutiveNarrative(int total, int ready, int notReady, int affectedJobs, int affectedSchedules, int enabledSchedules, int keptJobs, IReadOnlyList<(string Code, int Count)> reasons)
@@ -221,7 +254,6 @@ namespace Fis.ReportMigrationOrchestrator.Reporting.Generators
         internal const string AlertIcon = "<svg class='icon' viewBox='0 0 24 24' aria-hidden='true'><path d='M12 3.5 2.8 19.5h18.4L12 3.5Z' fill='none' stroke='currentColor' stroke-width='1.8' stroke-linejoin='round'/><path d='M12 10v4.5' stroke='currentColor' stroke-width='1.8' stroke-linecap='round'/><circle cx='12' cy='17' r='1.1' fill='currentColor'/></svg>";
         internal const string CheckIcon = "<svg class='icon' viewBox='0 0 24 24' aria-hidden='true'><circle cx='12' cy='12' r='9' fill='none' stroke='currentColor' stroke-width='1.8'/><path d='m7.8 12.3 2.8 2.8 5.6-5.8' fill='none' stroke='currentColor' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/></svg>";
 
-        // Also used by the run report (HtmlReportGenerator) so both share one look: impact strip, bars, side navigation.
         internal const string LocalCss = @"
 .impact { display:flex; gap:14px; align-items:flex-start; background:var(--impact-tint); color:var(--impact); border-radius:10px; padding:16px 20px; margin-bottom:14px; box-shadow:inset 0 0 0 1px rgba(178,106,0,.22); }
 .impact .icon { flex:none; width:26px; height:26px; margin-top:1px; }
@@ -255,10 +287,18 @@ namespace Fis.ReportMigrationOrchestrator.Reporting.Generators
 .open:hover { background:#232a4e; color:#fff; text-decoration:none; }
 .layout-clear { grid-template-columns:minmax(0,1fr); } .layout-clear .side { grid-template-columns:repeat(2,minmax(0,1fr)); align-items:start; }
 @media (max-width:860px) { .layout, .entries, .layout-clear .side { grid-template-columns:minmax(0,1fr); } }
-.exec .exec-lede { font-size:16px; margin:0 0 16px; max-width:75ch; }
-.exec h3 { font-size:14px; margin:0 0 8px; color:var(--navy); font-weight:600; }
-.steps { list-style:none; margin:0; padding:0; } .steps li { display:grid; grid-template-columns:110px 1fr; gap:12px; padding:8px 0; border-top:1px solid var(--line); }
-.steps .owner { font-weight:600; } .steps .item { display:block; }
+.exec h3 { font-size:14px; margin:18px 0 8px; color:var(--navy); font-weight:600; }
+.verdict { border-radius:8px; padding:12px 16px; margin:0 0 16px; background:var(--fail-tint); color:var(--fail); }
+.verdict-ok { background:var(--ok-tint); color:var(--ok); }
+.verdict-title { font-size:18px; font-weight:600; margin:0 0 4px; }
+.verdict p:last-child { margin:0; color:var(--ink); max-width:90ch; }
+.memo-figs { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; margin:0; }
+.memo-figs div { border:1px solid var(--line); border-radius:8px; padding:10px 12px; }
+.memo-figs dt { font-size:26px; font-weight:600; line-height:1.1; } .memo-figs dd { margin:2px 0 0; color:var(--muted); font-size:13px; }
+.decisions { margin:0; padding-left:20px; max-width:90ch; } .decisions li { margin:0 0 8px; } .decisions .action { display:block; }
+.sign { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:20px; }
+.sign div { border-top:1px solid var(--ink); padding-top:4px; margin-top:40px; font-size:12px; color:var(--muted); }
+@media (max-width:720px) { .memo-figs, .sign { grid-template-columns:repeat(2,minmax(0,1fr)); } }
 .toc { display:none; }
 .toc-title { font-size:13px; font-weight:600; margin:0 0 8px; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; }
 .toc ul { list-style:none; margin:0; padding:0; font-size:13px; } .toc li { margin:6px 0; } .toc ul ul { padding-left:12px; border-left:1px solid var(--line); margin-top:6px; font-size:12.5px; }
@@ -273,7 +313,7 @@ namespace Fis.ReportMigrationOrchestrator.Reporting.Generators
   .toc { display:block; position:fixed; top:0; left:0; width:190px; padding:0 14px 0 0; border-right:1px solid var(--line); background:#fff; box-shadow:none; border-radius:0; max-height:none; overflow:visible; }
   .shell { display:block; } .page-head, main, footer { margin-left:210px; }
 }
-@media print { .impact, .bar, .reason-bar, .key, .open { -webkit-print-color-adjust:exact; print-color-adjust:exact; } .exec { break-after:page; } .layout-clear { grid-template-columns:minmax(0,1fr); } .layout-clear .side, .entries { grid-template-columns:repeat(2,minmax(0,1fr)); } .jobs td, .jobs th { padding:5px 6px; } }
+@media print { .impact, .bar, .reason-bar, .key, .open, .verdict { -webkit-print-color-adjust:exact; print-color-adjust:exact; } .exec { break-after:page; } .layout-clear { grid-template-columns:minmax(0,1fr); } .layout-clear .side, .entries { grid-template-columns:repeat(2,minmax(0,1fr)); } .jobs td, .jobs th { padding:5px 6px; } }
 ";
     }
 }

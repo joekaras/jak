@@ -109,6 +109,17 @@ namespace Fis.ReportMigrationOrchestrator.Reporting.Generators
             try
             {
                 await process.WaitForExitAsync(cancellationToken);
+                if (process.ExitCode != 0)
+                {
+                    throw new InvalidOperationException($"Microsoft Edge failed to print the readiness PDF (exit code {process.ExitCode}).");
+                }
+
+                // Since Edge 155 the msedge.exe we start exits at once with code 0 and a child process it launched
+                // writes the PDF a moment later, so wait for the file rather than for the process.
+                if (!await WaitForPdfAsync(pdfPath, cancellationToken))
+                {
+                    throw new InvalidOperationException("Microsoft Edge exited successfully but did not create the readiness PDF.");
+                }
             }
             catch (OperationCanceledException)
             {
@@ -117,17 +128,8 @@ namespace Fis.ReportMigrationOrchestrator.Reporting.Generators
             }
             finally
             {
+                // After the wait, so the child Edge is done with the profile; a profile still locked is left behind.
                 try { Directory.Delete(profile, recursive: true); } catch (IOException) { } catch (UnauthorizedAccessException) { }
-            }
-
-            if (process.ExitCode != 0)
-            {
-                throw new InvalidOperationException($"Microsoft Edge failed to print the readiness PDF (exit code {process.ExitCode}).");
-            }
-
-            if (!File.Exists(pdfPath))
-            {
-                throw new InvalidOperationException("Microsoft Edge exited successfully but did not create the readiness PDF.");
             }
 
             var signature = new byte[5];
@@ -141,6 +143,37 @@ namespace Fis.ReportMigrationOrchestrator.Reporting.Generators
             if (!signature.AsSpan().SequenceEqual("%PDF-"u8))
             {
                 throw new InvalidOperationException("Microsoft Edge output is not a PDF because it does not begin with the %PDF- signature.");
+            }
+        }
+
+        private static readonly TimeSpan PdfTimeout = TimeSpan.FromMinutes(2);
+        private static readonly TimeSpan PdfPollInterval = TimeSpan.FromMilliseconds(250);
+
+        // The PDF is complete once it has a size, the size holds between two polls and no other process has it open.
+        private static async Task<bool> WaitForPdfAsync(string pdfPath, CancellationToken cancellationToken)
+        {
+            var deadline = DateTime.UtcNow + PdfTimeout;
+            long lastLength = -1;
+            while (DateTime.UtcNow < deadline)
+            {
+                var file = new FileInfo(pdfPath);
+                if (file.Exists && file.Length > 0 && file.Length == lastLength && !IsLocked(pdfPath)) return true;
+                lastLength = file.Exists ? file.Length : -1;
+                await Task.Delay(PdfPollInterval, cancellationToken);
+            }
+            return false;
+        }
+
+        private static bool IsLocked(string path)
+        {
+            try
+            {
+                using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.None);
+                return false;
+            }
+            catch (IOException)
+            {
+                return true;
             }
         }
     }
