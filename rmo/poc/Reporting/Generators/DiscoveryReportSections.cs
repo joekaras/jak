@@ -84,7 +84,7 @@ namespace Fis.ReportMigrationOrchestrator.Reporting.Generators
                     if (jobs[item.Document.DocumentId].Count > 0) html.Append("<span class='tag tag-impact'>" + Plural(jobs[item.Document.DocumentId].Count, "job", "jobs") + "</span>");
                     if (item.Document.IsPersonalFolderDocument) html.Append("<span class='tag'>Personal folder</span>");
                     var first = anchored.Add(item.Document);
-                    html.AppendLine("</summary><div class='doc-body'" + (first ? " id='" + documentAnchors[item.Document] + "'" : string.Empty) + ">" + DocumentBackLink(item.Document, documentAnchors[item.Document], back, fullList, forPrint: false) + NotConvertingBody(item.Document, item.Reasons, group.Key, jobs[item.Document.DocumentId], schedules, forPrint: false, first ? JobsAnchor("nc", position[item.Document]) : null) + "</div></details>");
+                    html.AppendLine("</summary><div class='doc-body'" + (first ? " id='" + documentAnchors[item.Document] + "'" : string.Empty) + ">" + DocumentBackLink(item.Document, documentAnchors[item.Document], back, fullList, forPrint: false, NotConvertingId) + NotConvertingBody(item.Document, item.Reasons, group.Key, jobs[item.Document.DocumentId], schedules, forPrint: false, first ? JobsAnchor("nc", position[item.Document]) : null) + "</div></details>");
                 }
                 html.AppendLine("</details><div class='print-only print-group'><h4 class='print-group-title'>" + E(reason.Title) + " <span class='count'>" + Plural(group.Count(), "report", "reports") + "</span>" + BackLink + "</h4>" + ReasonGuidance(reason) + "</div></div>");
             }
@@ -103,7 +103,7 @@ namespace Fis.ReportMigrationOrchestrator.Reporting.Generators
             html.AppendLine("<div class='print-only'><h3 class='card-title'>Details of reports that will not convert</h3>");
             foreach (var item in notReady)
             {
-                html.AppendLine("<article class='print-doc' id='" + documentAnchors[item.Document] + "-print'><h4 class='print-doc-title'>" + E(item.Document.Name) + DocumentBackLink(item.Document, documentAnchors[item.Document], back, fullList, forPrint: true) + "</h4>" + NotConvertingBody(item.Document, item.Reasons, null, jobs[item.Document.DocumentId], schedules, forPrint: true, JobsAnchor("nc", position[item.Document]) + "-print") + "</article>");
+                html.AppendLine("<article class='print-doc' id='" + documentAnchors[item.Document] + "-print'><h4 class='print-doc-title'>" + E(item.Document.Name) + DocumentBackLink(item.Document, documentAnchors[item.Document], back, fullList, forPrint: true, NotConvertingId) + "</h4>" + NotConvertingBody(item.Document, item.Reasons, null, jobs[item.Document.DocumentId], schedules, forPrint: true, JobsAnchor("nc", position[item.Document]) + "-print") + "</article>");
             }
             html.AppendLine("</div></section>");
             return html.ToString();
@@ -164,7 +164,7 @@ namespace Fis.ReportMigrationOrchestrator.Reporting.Generators
                     if (jobs[document.DocumentId].Count > 0) html.Append("<span class='tag'>" + Plural(jobs[document.DocumentId].Count, "job", "jobs") + "</span>");
                     if (document.IsPersonalFolderDocument) html.Append("<span class='tag'>Personal folder</span>");
                     var first = anchored.Add(document);
-                    html.AppendLine("</summary><div class='doc-body'" + (first ? " id='" + documentAnchors[document] + "'" : string.Empty) + ">" + DocumentBackLink(document, documentAnchors[document], back, fullList, forPrint: false) + ConvertingBody(document, jobs[document.DocumentId], schedules, forPrint: false, first ? JobsAnchor("c", position[document]) : null) + "</div></details>");
+                    html.AppendLine("</summary><div class='doc-body'" + (first ? " id='" + documentAnchors[document] + "'" : string.Empty) + ">" + DocumentBackLink(document, documentAnchors[document], back, fullList, forPrint: false, ConvertingId) + ConvertingBody(document, jobs[document.DocumentId], schedules, forPrint: false, first ? JobsAnchor("c", position[document]) : null) + "</div></details>");
                 }
                 html.AppendLine("</details><div class='print-only print-group'><h4 class='print-group-title'>" + E(group.Key) + " <span class='count'>" + Plural(group.Count(), "report", "reports") + "</span>" + BackLink + "</h4></div></div>");
             }
@@ -183,7 +183,7 @@ namespace Fis.ReportMigrationOrchestrator.Reporting.Generators
             html.AppendLine("<div class='print-only'><h3 class='card-title'>Details of reports that will convert</h3>");
             foreach (var document in ready)
             {
-                html.AppendLine("<article class='print-doc' id='" + documentAnchors[document] + "-print'><h4 class='print-doc-title'>" + E(document.Name) + DocumentBackLink(document, documentAnchors[document], back, fullList, forPrint: true) + "</h4>" + ConvertingBody(document, jobs[document.DocumentId], schedules, forPrint: true, JobsAnchor("c", position[document]) + "-print") + "</article>");
+                html.AppendLine("<article class='print-doc' id='" + documentAnchors[document] + "-print'><h4 class='print-doc-title'>" + E(document.Name) + DocumentBackLink(document, documentAnchors[document], back, fullList, forPrint: true, ConvertingId) + "</h4>" + ConvertingBody(document, jobs[document.DocumentId], schedules, forPrint: true, JobsAnchor("c", position[document]) + "-print") + "</article>");
             }
             html.AppendLine("</div></section>");
             return html.ToString();
@@ -321,12 +321,13 @@ namespace Fis.ReportMigrationOrchestrator.Reporting.Generators
         }
 
         // Screen copies sit in a drill-down, so the link is a line of its own; print copies put it beside the title.
-        private static string DocumentBackLink(MigrationDocument document, string documentAnchor, (IReadOnlyDictionary<MigrationDocument, string> Targets, string Label)? back, bool fullList, bool forPrint)
+        // A document with neither link (in the quick look, one not in its tables) links to its section's head instead.
+        private static string DocumentBackLink(MigrationDocument document, string documentAnchor, (IReadOnlyDictionary<MigrationDocument, string> Targets, string Label)? back, bool fullList, bool forPrint, string sectionId)
         {
             var parts = new List<string>();
             if (back is { } b && b.Targets.TryGetValue(document, out var target)) parts.Add("<a href='#" + target + "'>" + E(b.Label) + "</a>");
             if (fullList) parts.Add("<a href='#" + ListRowAnchor(documentAnchor) + "'>Back to report list</a>");
-            if (parts.Count == 0) return string.Empty;
+            if (parts.Count == 0) parts.Add("<a href='#" + sectionId + "'>Back to top of section</a>");
             var links = string.Join("<span aria-hidden='true'> &middot; </span>", parts);
             return forPrint ? "<span class='back'>" + links + "</span>" : "<p class='doc-back-line'>" + links + "</p>";
         }

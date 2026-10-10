@@ -38,17 +38,22 @@ The URLs come from `Properties/launchSettings.json`: https://localhost:5326 and 
 - `Reporting/Generators`: one `IReportGenerator` per format. Each declares the formats it handles in
   `CanGenerate`. `HtmlDiscoveryReportGenerator` implements `IDiscoveryReportGenerator`.
   - `HtmlDiscoveryDashboardGenerator`: the customer readiness report (`/api/discoveries/{id}/report/readiness`),
-    written as one file, `<stem>-readiness.html`. Summary first, then the sections from
+    written as one file, `<stem>-readiness.html`. A sign-off cover page first (verdict from `Verdict()`, figures,
+    decisions for the bank, signature block), then the summary, then the sections from
     `DiscoveryReportSections` (won't convert, then will convert). Shared CSS and helpers are in
     `DiscoveryReportShared`. `/api/discoveries/{id}/report/readiness/pdf` prints that HTML to
     `<stem>-readiness.pdf` and serves it inline.
   - `HtmlDiscoveryQuickLookGenerator`: the short version of the readiness report
     (`/api/discoveries/{id}/report/quicklook`, `<stem>-quicklook.html`; `/pdf` prints `<stem>-quicklook.pdf`). Three
-    scan lists come first: documents that won't convert, with folder and reason; documents with whitespace changes;
+    scan lists come first: documents that won't convert, as a tick-box checklist grouped by reason (the customer's
+    actions first, then reasons marked "Consult with FIS", which never show the catalogue's FIS commitments);
+    documents with whitespace changes;
     scheduler jobs that use the documents that won't convert. The same `DiscoveryReportSections` follow, without their
     full report lists (`fullList: false`), since the scan lists already cover them. Each document
     name in the lists links to its details, and each of those details links back to its row in the first or second
     list.
+  - `HtmlReportGenerator`: the run (audit) report, for service delivery and developers. A dense log with its own CSS,
+    not the customer look: only failures use a status colour, so migrated and skipped don't reuse green and amber.
   - `PdfReportGenerator`: the run report PDF (`format=pdf`), printed from `HtmlReportGenerator`'s HTML.
   - `EdgePdfPrinter`: prints an HTML file to PDF with headless Edge, then uses PDFsharp to remove the side-navigation
     links Chromium repeats on every page. All three PDFs are printed by it; the quick look skips the link removal
@@ -103,6 +108,10 @@ The URLs come from `Properties/launchSettings.json`: https://localhost:5326 and 
   first is writing into. A discovery that fails has its own files removed and is listed in the response's
   `Failures`; the others are still delivered and the call still returns 200. Only a cancelled request stops the
   whole export.
+- Keep the dev ports in `Properties/launchSettings.json` below 49152. Windows reserves blocks of ports in its dynamic
+  range (49152 and up) for Hyper-V/WinNAT, and the blocks can move after a reboot. A port inside one fails to bind
+  with `SocketException (10013)` even though nothing is listening on it; `netsh interface ipv4 show
+  excludedportrange protocol=tcp` lists the reserved blocks. That's why the ports moved from 60326/60327 to 5326/5327.
 - A running Visual Studio debug session locks `bin\`. To check a build without stopping it, use
   `dotnet build RmoReportingPoc.csproj -p:OutDir=<scratch folder>\`.
 
