@@ -1,0 +1,39 @@
+# systemd unit for the Java Linux POC. Install to /etc/systemd/system/vault-poc-java.service.
+# The deploy pipeline writes the wrapped secret_id to /run/vault-poc-java/wrapped-secret-id (mode 0400,
+# owner vault-poc) right before `systemctl restart vault-poc-java`. The app deletes it after reading.
+[Unit]
+Description=Vault client POC (Java)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=vault-poc
+Group=vault-poc
+WorkingDirectory=/opt/vault-poc-java
+ExecStart=/usr/bin/java -jar /opt/vault-poc-java/vault-poc-linux.jar
+Environment=VAULT_AUTH_MODE=approle-wrapped
+Environment=VAULT_ADDR=https://REPLACE-vault-host:8200
+Environment=VAULT_NAMESPACE=REPLACE-dev-namespace
+Environment=VAULT_KV_MOUNT=REPLACE-kv-mount
+Environment=VAULT_ROLE_ID=REPLACE-role-id
+Environment=VAULT_WRAPPED_SECRET_ID_FILE=/run/vault-poc-java/wrapped-secret-id
+Environment=VAULT_CACERT=/etc/pki/ca-trust/source/anchors/REPLACE-internal-ca.pem
+Environment=POC_INTERVAL_SECONDS=300
+RuntimeDirectory=vault-poc-java
+RuntimeDirectoryPreserve=yes
+RuntimeDirectoryMode=0700
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ReadWritePaths=/run/vault-poc-java
+# Keep secrets out of core dumps.
+LimitCORE=0
+# Exit code 143 is the JVM's normal answer to SIGTERM.
+SuccessExitStatus=143
+Restart=on-failure
+RestartSec=30
+
+[Install]
+WantedBy=multi-user.target

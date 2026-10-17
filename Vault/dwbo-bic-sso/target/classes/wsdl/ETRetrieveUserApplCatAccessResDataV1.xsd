@@ -1,0 +1,54 @@
+<xs:schema targetNamespace="mtvnETRetrieveUserApplCatAccessResData" elementFormDefault="qualified" attributeFormDefault="unqualified" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns="mtvnETRetrieveUserApplCatAccessResData">
+	<xs:element name="RetrieveUserApplCatAccessResponse">
+		<xs:complexType>
+			<xs:sequence>
+				<xs:element name="LstNme" type="xs:string" minOccurs="0"/>
+				<xs:element name="FrstNme" type="xs:string" minOccurs="0"/>
+				<xs:element name="EmpId" type="xs:string" minOccurs="0"/>
+				<xs:element name="PwdManaged" type="xs:boolean" minOccurs="0"/>
+				<xs:element name="SecurityUser" type="xs:boolean" minOccurs="0"/>
+				<xs:element name="Org" maxOccurs="unbounded">
+					<xs:complexType>
+						<xs:sequence>
+							<xs:element name="OrgNme" type="xs:string"/>
+							<xs:element name="PrcsGrp" maxOccurs="unbounded">
+								<xs:complexType>
+									<xs:sequence>
+										<xs:element name="PrcsGrpId" type="xs:string"/>
+										<xs:element name="EntrprseOrgNme" type="xs:string" minOccurs="0"/>
+										<xs:element name="EntlList" minOccurs="0">
+											<xs:complexType>
+												<xs:sequence>
+													<xs:element name="EntlAppl" minOccurs="0" maxOccurs="unbounded">
+														<xs:complexType>
+															<xs:sequence>
+																<xs:element name="ApplId" type="xs:string"/>
+																<xs:element name="ApplNme" type="xs:string"/>
+																<xs:element name="EntlCat" maxOccurs="unbounded">
+																	<xs:complexType>
+																		<xs:sequence>
+																			<xs:element name="CatId" type="xs:string"/>
+																			<xs:element name="CatNme" type="xs:string"/>
+																		</xs:sequence>
+																	</xs:complexType>
+																</xs:element>
+															</xs:sequence>
+														</xs:complexType>
+													</xs:element>
+													<xs:element name="ErrCde" type="xs:string"/>
+													<xs:element name="ErrMsg" type="xs:string" minOccurs="0"/>
+												</xs:sequence>
+											</xs:complexType>
+										</xs:element>
+										<xs:element name="ErrCde" type="xs:string"/>
+										<xs:element name="ErrMsg" type="xs:string" minOccurs="0"/>
+									</xs:sequence>
+								</xs:complexType>
+							</xs:element>
+						</xs:sequence>
+					</xs:complexType>
+				</xs:element>
+			</xs:sequence>
+		</xs:complexType>
+	</xs:element>
+</xs:schema>

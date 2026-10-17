@@ -1,0 +1,11 @@
+{
+  "address": "https://REPLACE-vault-host:8200",
+  "namespace": "REPLACE-dev-namespace",
+  "kvMount": "REPLACE-kv-mount",
+  "authMode": "approle-wrapped",
+  "authMount": "approle",
+  "roleId": "REPLACE-role-id",
+  "wrappedSecretIdFile": "/run/vault-poc/wrapped-secret-id",
+  "caCertificateFile": "/etc/pki/ca-trust/source/anchors/REPLACE-internal-ca.pem",
+  "cacheTtlSeconds": 300
+}

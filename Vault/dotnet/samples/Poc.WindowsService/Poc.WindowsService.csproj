@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>Fis.Foundation.Vault.Poc.WindowsService</RootNamespace>
+  </PropertyGroup>
+
+  <!-- POC-only: lets the Generic Host run under the Windows Service Control Manager. -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" Version="8.0.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Poc.Common\Poc.Common.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="..\Poc.Linux\PocWorker.cs" Link="PocWorker.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="vault.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

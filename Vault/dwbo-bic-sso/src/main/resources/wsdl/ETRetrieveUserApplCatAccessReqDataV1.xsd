@@ -1,0 +1,15 @@
+<xs:schema targetNamespace="mtvnETRetrieveUserApplCatAccessReqData" elementFormDefault="qualified" attributeFormDefault="unqualified" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns="mtvnETRetrieveUserApplCatAccessReqData">
+	<xs:element name="RetrieveUserApplCatAccessRequest" type="RetrieveUserApplCatAccessRequestType" />
+	<xs:complexType name="RetrieveUserApplCatAccessRequestType">
+				<xs:sequence>
+					<xs:element name="PrcsGrpId" type="xs:string"/>
+				</xs:sequence>
+	</xs:complexType>
+	<xs:element name="UsrId">
+		<xs:simpleType>
+			<xs:restriction base="xs:string">
+				<xs:minLength value="1"/>
+			</xs:restriction>
+		</xs:simpleType>
+	</xs:element>
+</xs:schema>

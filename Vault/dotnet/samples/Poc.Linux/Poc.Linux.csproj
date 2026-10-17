@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>Fis.Foundation.Vault.Poc.Linux</RootNamespace>
+  </PropertyGroup>
+
+  <!-- POC-only: sd_notify readiness and journald-friendly logging under systemd. -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Hosting.Systemd" Version="8.0.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Poc.Common\Poc.Common.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="vault.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="vault-poc.service" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

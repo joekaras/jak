@@ -1,0 +1,55 @@
+//Copyright Notice!
+//This document is protected under the trade secret and copyright
+//laws as the property of Fidelity National Information Services, Inc.
+//Copying, reproduction or distribution should be limited and only to
+//employees with a "need to know" to do their job.
+//Any disclosure of this document to third parties is strictly prohibited.
+
+//copyright 2026 Fidelity National Information Services.
+//All rights reserved worldwide.
+
+// This file contains code that was generated in part with the assistance of Claude Code,
+// an AI Coding Assistant. Portions of this file were written by the developer.
+
+package com.fis.foundation.vault.poc.tomcat;
+
+import com.fis.foundation.vault.SecretClient;
+import com.fis.foundation.vault.VaultException;
+import com.fis.foundation.vault.internal.Json;
+import com.fis.foundation.vault.poc.PocCheck;
+
+import javax.servlet.annotation.WebServlet;
+import javax.servlet.http.HttpServlet;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import java.io.IOException;
+import java.util.LinkedHashMap;
+import java.util.Map;
+
+/**
+ * {@code GET /vault/health}: runs the POC check and returns key names and a success flag, never values.
+ */
+@WebServlet("/vault/health")
+public final class VaultHealthServlet extends HttpServlet {
+
+    private static final long serialVersionUID = 1L;
+
+    @Override
+    protected void doGet(HttpServletRequest request, HttpServletResponse response) throws IOException {
+        SecretClient client = (SecretClient) getServletContext().getAttribute(VaultContextListener.ATTRIBUTE);
+        response.setContentType("application/json");
+        response.setCharacterEncoding("UTF-8");
+        response.setHeader("Cache-Control", "no-store");
+
+        try {
+            PocCheck.Result result = PocCheck.run(client, PocCheck.Settings.fromEnvironment());
+            response.getWriter().write(result.toJson());
+        } catch (VaultException e) {
+            Map<String, Object> problem = new LinkedHashMap<String, Object>();
+            problem.put("title", e.getClass().getSimpleName());
+            problem.put("detail", e.getMessage());
+            response.setStatus(HttpServletResponse.SC_SERVICE_UNAVAILABLE);
+            response.getWriter().write(Json.write(problem));
+        }
+    }
+}

@@ -1,0 +1,34 @@
+<!--
+  WinSW service definition for the Java Windows POC. Copy WinSW-x64.exe next to this file as vault-poc.exe,
+  then run (elevated): vault-poc.exe install
+
+  Run the service as a dedicated low-privilege account and restrict C:\apps\vault-poc\secrets so only that
+  account can read it. The recommended mode on Windows is Agent: a Vault Agent service on the same box
+  listens on 127.0.0.1:8100, and this app holds no credential at all.
+-->
+<service>
+  <id>vault-poc-java</id>
+  <name>Vault POC (Java)</name>
+  <description>Reads test secrets from Vault through the local Vault Agent.</description>
+  <executable>%JAVA_HOME%\bin\java.exe</executable>
+  <arguments>-jar "%BASE%\vault-poc-windows.jar"</arguments>
+  <workingdirectory>%BASE%</workingdirectory>
+  <stoptimeout>15 sec</stoptimeout>
+
+  <env name="VAULT_AUTH_MODE" value="agent" />
+  <env name="VAULT_ADDR" value="http://127.0.0.1:8100" />
+  <env name="VAULT_NAMESPACE" value="REPLACE-dev-namespace" />
+  <env name="VAULT_KV_MOUNT" value="REPLACE-kv-mount" />
+  <env name="POC_INTERVAL_SECONDS" value="300" />
+
+  <!-- AppRole alternative (the pipeline writes the wrapped file right before starting the service):
+  <env name="VAULT_AUTH_MODE" value="approle-wrapped" />
+  <env name="VAULT_ADDR" value="https://REPLACE-vault-host:8200" />
+  <env name="VAULT_ROLE_ID" value="REPLACE-role-id" />
+  <env name="VAULT_WRAPPED_SECRET_ID_FILE" value="C:\apps\vault-poc\secrets\wrapped-secret-id" />
+  <env name="VAULT_CACERT" value="C:\apps\vault-poc\REPLACE-internal-ca.pem" />
+  -->
+
+  <log mode="roll-by-size" />
+  <onfailure action="restart" delay="30 sec" />
+</service>

@@ -1,0 +1,58 @@
+<definitions xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:tns="mtvnETRetrieveUserApplCatAccessWSV1" xmlns:soap="http://schemas.xmlsoap.org/wsdl/soap/" xmlns:soap12="http://schemas.xmlsoap.org/wsdl/soap12/" xmlns:import0="mtvnMBUDSvcReq" xmlns:import1="mtvnMBUDSvcRes" targetNamespace="mtvnETRetrieveUserApplCatAccessWSV1" name="mtvnETRetrieveUserApplCatAccessWSV1" xmlns="http://schemas.xmlsoap.org/wsdl/">
+	<documentation xmlns="http://schemas.xmlsoap.org/wsdl/">Entitlement Web Service Interface</documentation>
+	<types>
+		<xsd:schema>
+			<xsd:import schemaLocation="./ETRetrieveUserApplCatAccessWSV1Req.xsd" namespace="mtvnMBUDSvcReq"/>
+			<xsd:import schemaLocation="./ETRetrieveUserApplCatAccessWSV1Res.xsd" namespace="mtvnMBUDSvcRes"/>
+		</xsd:schema>
+	</types>
+	<message name="ETRetrieveUserApplCatAccessMtvnSvcReqMsg">
+		<documentation xmlns="http://schemas.xmlsoap.org/wsdl/"/>
+		<part name="messagePart" element="import0:ETRetrieveUserApplCatAccessMtvnSvcReq"/>
+	</message>
+	<message name="ETRetrieveUserApplCatAccessMtvnSvcResMsg">
+		<documentation xmlns="http://schemas.xmlsoap.org/wsdl/"/>
+		<part name="messagePart" element="import1:ETRetrieveUserApplCatAccessMtvnSvcRes"/>
+	</message>
+	<portType name="mtvnETRetrieveUserApplCatAccessWSV1Interface">
+		<documentation xmlns="http://schemas.xmlsoap.org/wsdl/">ETRetrieveUserApplCatAccessWSV1</documentation>
+		<operation name="ETRetrieveUserApplCatAccess">
+			<documentation xmlns="http://schemas.xmlsoap.org/wsdl/"/>
+			<input message="tns:ETRetrieveUserApplCatAccessMtvnSvcReqMsg"/>
+			<output message="tns:ETRetrieveUserApplCatAccessMtvnSvcResMsg"/>
+		</operation>
+	</portType>
+	<binding name="mtvnETRetrieveUserApplCatAccessWSV1" type="tns:mtvnETRetrieveUserApplCatAccessWSV1Interface">
+		<soap:binding transport="http://schemas.xmlsoap.org/soap/http" style="document"/>
+		<operation name="ETRetrieveUserApplCatAccess">
+			<soap:operation soapAction="ETRetrieveUserApplCatAccessWSV1:ETRetrieveUserApplCatAccessMtvnSvcReqMsg" style="document"/>
+			<input>
+				<soap:body use="literal"/>
+			</input>
+			<output>
+				<soap:body use="literal"/>
+			</output>
+		</operation>
+	</binding>
+	<binding name="mtvnETRetrieveUserApplCatAccessWSV1_SOAP12" type="tns:mtvnETRetrieveUserApplCatAccessWSV1Interface">
+		<soap12:binding transport="http://schemas.xmlsoap.org/soap/http" style="document"/>
+		<operation name="ETRetrieveUserApplCatAccess">
+			<soap12:operation soapAction="ETRetrieveUserApplCatAccessWSV1:ETRetrieveUserApplCatAccessMtvnSvcReqMsg" style="document"/>
+			<input>
+				<soap12:body use="literal"/>
+			</input>
+			<output>
+				<soap12:body use="literal"/>
+			</output>
+		</operation>
+	</binding>
+	<!-- NEW SOAP 1.2 port -->
+    <service name="mtvnETRetrieveUserApplCatAccessWSV1">
+        <port name="mtvnETRetrieveUserApplCatAccessWSV1Port" binding="tns:mtvnETRetrieveUserApplCatAccessWSV1">
+            <soap:address location="https://ih-system.fisdev.local/ConnectwareWS/ETRetrieveUserApplCatAccessWSV1"/>
+        </port>
+        <port name="mtvnETRetrieveUserApplCatAccessWSV1Port_SOAP12" binding="tns:mtvnETRetrieveUserApplCatAccessWSV1_SOAP12">
+            <soap12:address location="https://ih-system.fisdev.local/xml/XMLServlet"/>
+        </port>
+    </service>
+</definitions>

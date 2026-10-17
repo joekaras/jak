@@ -1,0 +1,6 @@
+buildParams:
+  checkmarx:
+    checkmarxAppName: "IBS_MAS_BIC_SSO_Redirector_prod"
+    groupid: "844"
+  openShiftProjectName: "ibsmas21"
+  notificationEmail: "ibsmas.build.notifications@fisglobal.com" 

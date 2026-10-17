@@ -1,0 +1,41 @@
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:ns1="mtvnETRetrieveUserApplCatAccessResData" xmlns:rs="mtvnMBUDSvcRes" targetNamespace="mtvnMBUDSvcRes" elementFormDefault="qualified" attributeFormDefault="unqualified">
+	<xs:import namespace="mtvnETRetrieveUserApplCatAccessResData" schemaLocation="ETRetrieveUserApplCatAccessResDataV1.xsd"/>
+	<xs:element name="ETRetrieveUserApplCatAccessMtvnSvcRes">
+		<xs:complexType>
+			<xs:sequence>
+				<xs:element name="MtvnSvcVer" type="xs:string" minOccurs="0"/>
+				<xs:element name="MsgUUID" type="xs:string"/>
+				<xs:element name="Svc" maxOccurs="unbounded">
+					<xs:complexType>
+						<xs:sequence>
+							<xs:element name="SvcParms">
+								<xs:complexType>
+									<xs:sequence>
+										<xs:element name="ApplID" type="xs:string"/>
+										<xs:element name="SvcID" type="xs:string"/>
+										<xs:element name="SvcVer" type="xs:string"/>
+										<xs:element name="RqstUUID" type="xs:string" minOccurs="0"/>
+									</xs:sequence>
+								</xs:complexType>
+							</xs:element>
+							<xs:element name="MsgData">
+								<xs:complexType>
+									<xs:sequence>
+										<xs:choice>
+											<xs:element name="DefaultResData" type="xs:string"/>
+											<xs:element ref="ns1:RetrieveUserApplCatAccessResponse"/>
+										</xs:choice>
+									</xs:sequence>
+								</xs:complexType>
+							</xs:element>
+							<xs:element name="ErrCde" type="xs:string"/>
+							<xs:element name="ErrMsg" type="xs:string" minOccurs="0"/>
+						</xs:sequence>
+					</xs:complexType>
+				</xs:element>
+				<xs:element name="ErrCde" type="xs:string"/>
+				<xs:element name="ErrMsg" type="xs:string" minOccurs="0"/>
+			</xs:sequence>
+		</xs:complexType>
+	</xs:element>
+</xs:schema>

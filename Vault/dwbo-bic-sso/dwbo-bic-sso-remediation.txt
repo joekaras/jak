@@ -1,0 +1,368 @@
+dwbo-bic-sso — Mythos Findings & Fixes Applied
+=========================================================
+Status as of 2026-10-06: PR #37 MERGED to master; PR #38 and #39 MERGED to develop (a2cc9b1).
+NOT yet deployed to SYSTEM, promoted to master, or rescanned - f010/f024 still unfixed for reporting.
+Note: real fixes differ from the static Mythos patch recommendations (verified against actual
+previously-merged-then-reverted commits) - env var names, property names, and file scope below
+are the REAL ones, not what the original static patch suggested.
+
+Finding: f010 (old ID f018)
+  Jira: IBSDA-94962
+  SNOW: AVIT32772748
+  UUID: 723c06d0-27fa-41f2-98a8-949c667a73fc
+  Severity: HIGH (claimed) / MEDIUM (triage-adjusted)
+  Category: hardcoded-cryptographic-key
+  Title: Hardcoded AES key decrypts committed production SSO trust-anchor secret
+  Files: SecretKeyStorage.java
+  Exact rationale from TRIAGE.json (f010):
+    "SecretKeyStorage.java:109 hardcodes the AES key/IV that decrypts the BO4SecretKey ciphertext
+    committed in production configs (IBSMAS-dwbo-bic-sso-config/master/BOE Production/src/main/
+    resources/bicsso_config.properties, plus CRD Production and six other environments, with prod
+    CMS hostnames). The decrypted value is the TrustedAuthentication shared secret passed to
+    createTrustedPrincipal (SessionManager.java:35) via LoginHelper.java:48, reachable from the
+    live entry point index.jsp:135 — it enables password-less logon as arbitrary users.
+    EncryptedProperties.java:92 confirms no second encryption layer exists (all crypto is
+    commented out), so repo read access alone recovers the production trust-anchor secret
+    offline."
+  Exact recommendation from TRIAGE.json (f010):
+    "Vault-held secret, remove hardcoded key/IV, rotate the trusted-auth secret everywhere, purge
+    history."
+  Fix done:
+    - DecryptSSO() key/IV now sourced from BICSSO_BO4_KEK / BICSSO_BO4_KEK_IV (JVM system property,
+      falling back to environment variable), failing closed with IllegalStateException if neither is set.
+  PR: #38 (feature/IBSDA-94962-f010-sso-key-removal -> develop), MERGED 2026-10-06, mvn test passed.
+  Required before deployment (not done): rotate the SSO trust-anchor key; re-encrypt BO4SecretKey
+  ciphertext across all 8 environment properties files in IBSMAS-dwbo-bic-sso-config.
+
+Finding: IBSDA-94956 (a) — old finding f082
+  Jira: IBSDA-94956
+  Severity/UUID: not separately tracked in the current scan
+  Category: auth-bypass (fail-open account unlock)
+  Title: LoginHelper auto-unlocked and retried login on a disabled BOE account
+  Files: LoginHelper.java
+  Note: no rationale/recommendation quote available — old ID f082 does not exist as a distinct
+    entry in the current TRIAGE.json; this sub-fix was carried forward from a prior, now-stale
+    scan generation and re-verified manually against current LoginHelper.java, not against a live
+    Mythos finding record.
+  Fix done:
+    - Removed the unlockUser()/retry-login path on a disabled-account exception; now fails closed
+      (logs rejection, returns null) instead of re-enabling a deliberately disabled account.
+  PR: #39 (feature/IBSDA-94956-mac4sso-entitlement-and-failclosed -> develop), MERGED 2026-10-06, bundled with (b)/(c) below.
+
+Finding: IBSDA-94956 (b) — current f024 (old f184+f197)
+  Jira: IBSDA-94956 (also duplicated as IBSDA-95089 / IBSDA-95090)
+  SNOW: AVIT32772774
+  UUID: a6640101-62aa-432c-b283-f7c87c04cc43
+  Severity: MEDIUM
+  Category: auth-bypass
+  Title: MAC4SSO channel skipped entitlement check; all channels share one keypair
+  Files: index.jsp, SingleSignOnConfiguration.java
+  Exact rationale from TRIAGE.json (f024):
+    "index.jsp:149-152 logs the user into BO via TokenLoginBO4 with no UserHasApplId entitlement
+    check, while the LP/CM branches require it (index.jsp:124). The channel that selects both the
+    code branch and the decryption key is the raw request parameter (index.jsp:46,
+    SlapiTokenHandler.java:96), and production slapi_config.properties (BOE Production, lines
+    5-6/14-15/23-24) assigns all three channels the identical RSA keypair, so a token minted for
+    BO_LP_SSO validates unchanged under channel=BO_MAC4_SSO. Production SSOMode=InDirect
+    (bicsso_config.properties:1) keeps the page live, and TokenLoginBO4 (LoginHelper.java:43-71)
+    performs an admin-trusted SSO with no authorization of its own. Trust-boundary note: requires
+    a valid signed issuer token, so this is entitlement bypass by an authenticated token holder,
+    not unauthenticated access; residual uncertainty is possible in-token channel binding inside
+    the closed-source SLAPI jar."
+  Exact recommendation from TRIAGE.json (f024):
+    "Run the entitlement check on the MAC4SSO branch (or distinct keys per channel); verify the
+    in-token channel claim."
+  Fix done:
+    - Added the same UserHasApplId entitlement check to the MAC4SSO branch (inside its own
+      "else if" block, not merged into the LP/CM shared condition), gated on a new Mac4ApplId
+      config property via SingleSignOnConfiguration.getMac4ApplId().
+  PR: #39 (same PR as above), MERGED 2026-10-06, mvn test passed.
+  Residual risk (not fixed, config-only/Service Delivery-owned): all three SSO channels still share one RSA
+  keypair in production slapi_config.properties.
+
+Finding: IBSDA-94956 (c) — old finding f184
+  Jira: IBSDA-94956
+  Severity/UUID: not separately tracked in the current scan
+  Category: fail-open decrypt (swallowed exception)
+  Title: SlapiTokenHandler swallowed SLAPI token decrypt/validation failures
+  Files: SlapiTokenHandler.java, index.jsp (call site)
+  Note: no rationale/recommendation quote available — old ID f184 does not exist as a distinct
+    entry in the current TRIAGE.json; same carried-forward situation as (a) above.
+  Fix done:
+    - getDecryptedCredentials(String, String channel) now throws BicSsoException on failure instead
+      of returning an empty Credentials object; index.jsp updated to pass channel explicitly.
+  PR: #39 (same PR as above), MERGED 2026-10-06.
+
+Finding: f091
+  Jira: IBSDA-96108
+  SNOW: AVIT32772818
+  UUID: 429dfc76-90c7-4f3f-ab51-0da68bf306ed
+  Severity: LOW
+  Category: insecure-artifact-fetching
+  Title: SSO component build fetched Maven dependencies over plain HTTP
+  Files: pom.xml
+  Exact rationale from TRIAGE.json (f091):
+    "pom.xml:17-18 fetches all dependencies (with <id>central</id> shadowing Maven Central,
+    including crypto/SSO jars) over plain HTTP into a production SSO redirector WAR built weekly
+    by live CI (Jenkinsfile:7, buildParams.yml:3 IBS_MAS_BIC_SSO_Redirector_prod). Twelve sibling
+    repos use https for the identical Artifactory host, proving HTTPS works and this is
+    misconfiguration drift, not design. No settings.xml, mirror, or Maven version pin exists
+    anywhere in scope to compensate; the pipeline library that might inject one is external
+    (Jenkinsfile:2-5) and the local IBSMAS-Groovy copy is an empty placeholder. Exploitation
+    requires an on-path attacker toward internal artifactory.fis.dev, which supports the claimed
+    LOW severity; confidence is moderate because an unverifiable CI-side mirror could in principle
+    neutralize the URL."
+  Exact recommendation from TRIAGE.json (f091):
+    "Change both poms to https; use a Maven >=3.8 build image."
+  Fix done:
+    - http:// -> https:// artifactory URL. Applied directly to MASTER (not develop) because
+      develop's pom.xml has had no <repositories> block at all since 2026-04 (an unrelated older
+      ticket, IBSDA-82558) - there was nothing to fix on develop.
+  PR: #37 (feature/IBSDA-96108-master-https-artifactory -> master), MERGED 2026-09-22 (230f5d9). Awaiting rescan.
+
+Service Delivery Prerequisites for SSO (no dwbo-bic-sso code changes)
+----------------------------------------------------------------
+Required before deploying PR #38 / #39 to any environment:
+  1. Provision BICSSO_BO4_KEK and BICSSO_BO4_KEK_IV to the Tomcat process for each tier (JVM
+     system property or env var). Use the CURRENT pre-rotation key/IV. Inject from Vault via
+     Harness, not machine-level env vars in Readiness/Prod/DR.
+     If missing: IllegalStateException; SSO login fails on every channel. (PR #38)
+  2. Add Mac4ApplId to bicsso_config.properties in all 10 environments of
+     IBSMAS-dwbo-bic-sso-config. This is a config-repo PR, deployed before or with the code.
+     The value comes from the entitlement-service owners. As of 2026-10-06 it is absent on
+     master, develop, and release/release-2025.11.09.
+     If missing: every MAC4 login is denied. (PR #39)
+  3. Confirm MAC4 users hold the Mac4ApplId entitlement or their bank is on
+     entitlement.exemption.list. (PR #39)
+  4. Tell support that disabled BOE accounts are now rejected, not auto-unlocked. (PR #39)
+Required before closure (not deploy blockers):
+  - Rotate the trusted-auth shared secret in the BOE CMC for each tier.
+  - Generate a new KEK for each tier; re-encrypt BO4SecretKey in all 10 bicsso_config.properties
+    files (two-pass rollout).
+  - Use separate RSA keypairs for each channel in slapi_config.properties (f024 residual).
+Code follow-up (separate ticket): AES-GCM with a random IV; retire BICSSO_BO4_KEK_IV.
+Open items (as of 2026-10-06; owners TBD):
+  O1. Mac4ApplId value - NOT FOUND; get from entitlement-service owners, then config-repo PR
+      (all 10 files). No other config key is missing.
+  O2. Secure handoff of current KEK/IV to Service Delivery (not via ticket/chat/email).
+  O3. Delivery mechanism per tier: confirm Vault path and Harness vs. other Tomcat JVM/env setup.
+  O4. Target host list per tier (9 deployable envs + Local).
+  O5. Named owners: config PR, ApplId, KEK provisioning, support notice, CMC rotation.
+  O6. Post-provisioning smoke test per tier (LP, CM, MAC4 login) - only proof the KEK is correct;
+      a wrong KEK fails silently.
+  O7. Jira ticket for the Service Delivery work (none found in plan docs).
+
+Branch state for the code sections below (local origin refs, not re-fetched; captured 2026-10-13):
+  Source: c:\1mythos\9946\dwbo-bic-sso (full clone, not shallow)
+  origin/develop = a2cc9b1 (PR #39); baseline before PRs #38/#39 = 7aac188 (PR #36 revert).
+  origin/master  = 230f5d9 (PR #37).
+  On origin/master (checked with git grep, counts only): the hardcoded AESEncryption key/IV literal
+  is still present (1), getMac4ApplId is absent (0), and the unlockUser retry is still present (1).
+  So f010 and f024 are NOT on master and remain UNFIXED for reporting. f091 is on master.
+  Hardcoded key/IV literals are redacted below.
+
+f010 / AVIT32772748 — Before and After Code Changes (captured 2026-10-13)
+=========================================================================
+Source: `git diff 5e792bc^1 5e792bc` (PR #38 merge)
+  432807d = IBSDA-94962: externalize SSO trust-anchor AES KEK/IV, fail closed
+            (Karas, Joe, 2026-09-19)
+  File: src/main/java/com/fis/bic/sso/helper/SecretKeyStorage.java
+
+1. SecretKeyStorage.java — new constants (~line 36)
+   AFTER:
+     private static final String BO4_KEK_NAME = "BICSSO_BO4_KEK";
+     private static final String BO4_KEK_IV_NAME = "BICSSO_BO4_KEK_IV";
+
+2. SecretKeyStorage.java — DecryptSSO() (~line 110)
+   BEFORE:
+     public String DecryptSSO(String encryptedVal)
+     {
+         AESEncryption aes = new AESEncryption("<hardcoded key - redacted>", "<hardcoded IV - redacted>");
+         return aes.decryptString(encryptedVal);
+     }
+   AFTER:
+     public String DecryptSSO(String encryptedVal)
+     {
+         // Mythos remediation: Legacy Vulnerability ID 723c06d0-27fa-41f2-98a8-949c667a73fc; SNOW AVIT32772748
+         AESEncryption aes = new AESEncryption(readRequiredSecret(BO4_KEK_NAME),
+                     readRequiredSecret(BO4_KEK_IV_NAME));
+         return aes.decryptString(encryptedVal);
+     }
+
+3. SecretKeyStorage.java — new helper
+   NEW METHOD (AFTER):
+     private static String readRequiredSecret(final String name)
+     {
+         String value = System.getProperty(name);
+         if (value == null || value.trim().length() == 0) {
+             value = System.getenv(name);
+         }
+         if (value == null || value.trim().length() == 0) {
+             logger.error("Key-encryption secret is not configured. Set JVM system property or environment variable: ", name);
+             throw new IllegalStateException("Key-encryption secret '" + name + "' is not configured");
+         }
+         return value;
+     }
+
+4. Tests (not run 2026-10-13)
+   SecretKeyStorageTest.java          — new: decryptFailsClosedWhenKeyMaterialNotConfigured
+                                         (clears both properties, expects IllegalStateException)
+   src/test/resources/bicsso_config.properties — new, 1 line: Channel=BO_LP_SSO
+
+Open items for this change set:
+  - Provision BICSSO_BO4_KEK / BICSSO_BO4_KEK_IV per tier before deploy (prerequisite 1).
+  - The old key/IV are still in master and in Git history; rotate KEK and trusted-auth secret.
+  - develop -> master promotion, then rescan.
+
+f024 / AVIT32772774 — IBSDA-94956 (a), (b), (c) — Before and After Code Changes (captured 2026-10-13)
+=====================================================================================================
+Source: `git diff a2cc9b1^1 a2cc9b1 -- src/main` (PR #39 merge)
+  2c16454 = IBSDA-94956: fail-closed on disabled accounts, MAC4SSO entitlement gate, SLAPI decrypt
+            fail-closed (Karas, Joe, 2026-09-19)
+  All three sub-fixes carry the f024 UUID/AVIT in their source comments, including (a) and (c),
+  which have no separate current Mythos record.
+  Directory: src/main/java/com/fis/bic/sso/helper/ and src/main/webapp/
+
+(a) LoginHelper.java — disabled-account handling in TokenLoginBO4 (~line 90)
+   BEFORE:
+     if(sdke.getDetailMessage().contains("disabled"))
+     {
+         boolean unlocked = unlockUser(userName);
+
+         if(unlocked)
+         {
+             logger.info("User Account unlocked using EGRES and trying to login again for account:", userName);
+             return TokenLoginBO4(userName);
+         }
+         else
+         {
+             logger.error("User Account unlocked failed:", userName);
+         return null;
+     }
+   AFTER:
+     if(sdke.getDetailMessage().contains("disabled"))
+     {
+         // Mythos remediation: Legacy Vulnerability ID a6640101-62aa-432c-b283-f7c87c04cc43; SNOW AVIT32772774
+         // Fail closed: accounts are disabled deliberately (dormancy
+         // maintenance or admin action). Never auto-re-enable and
+         // retry from the SSO path.
+         logger.error("Login rejected, account is disabled:", userName);
+         return null;
+     }
+
+(b) SingleSignOnConfiguration.java — new field and getter (~lines 41, 80)
+   AFTER:
+     private String mac4ApplId=null; //MAC 4 Application Id
+     ...
+     // Mythos remediation: Legacy Vulnerability ID a6640101-62aa-432c-b283-f7c87c04cc43; SNOW AVIT32772774
+     /***
+      * Gets the MAC 4 Entitlement ApplId
+      */
+     public String getMac4ApplId() {
+         mac4ApplId = encprop.getProperty("Mac4ApplId");
+         logger.info("Returning configured Mac4 ApplId from storage", mac4ApplId);
+         return mac4ApplId;
+     }
+
+(b) index.jsp — MAC4SSO branch (~line 148)
+   BEFORE:
+     } else if ( channel.equals(BicssoConstants.MAC4SSO) ) {
+         login = new LoginHelper();
+         signOnEvnt.setLogin(login);
+         loginResult = login.TokenLoginBO4(userid);
+   AFTER:
+     } else if ( channel.equals(BicssoConstants.MAC4SSO) ) {
+         // Mythos remediation: Legacy Vulnerability ID a6640101-62aa-432c-b283-f7c87c04cc43; SNOW AVIT32772774
+         //validate Entitlment ApplId
+         String entitlementEndpoint = configuration.getEntitlementUrl();
+         EntitlementServiceClient client = new EntitlementServiceClient(entitlementEndpoint);
+
+         String transUuid = (String)request.getAttribute("UUID");
+         if (transUuid == null) {
+             transUuid = java.util.UUID.randomUUID().toString();
+         }
+
+         java.util.List<String> banksExemptFromEntitlementCheck = configuration.getEntitlementBankExceptions();
+         String userBank = userid.substring(1,4);
+
+         String applId = configuration.getMac4ApplId();
+         if (applId == null || applId.trim().length() == 0) {
+             throw new Exception("No entitlement ApplId configured for channel " + channel + ". Access denied.");
+         }
+
+         // If the user's bank is not on the exception list and the user does not have the proper entitlement role, access is denied.
+         if (banksExemptFromEntitlementCheck.stream().noneMatch(bank -> bank.equalsIgnoreCase(userBank)) && !client.UserHasApplId(userid,
+                 authCredentials.getCredential(Credentials.KEY_CREDENTIAL),
+                 userBank,
+                 applId,
+                 transUuid))
+         {
+             throw new Exception("User does not have proper entitlments ApplId assigned to access application.");
+         }
+
+         login = new LoginHelper();
+         signOnEvnt.setLogin(login);
+         loginResult = login.TokenLoginBO4(userid);
+
+(c) SlapiTokenHandler.java — getDecryptedCredentials() (~line 90)
+   BEFORE:
+     public Credentials getDecryptedCredentials(final String slapiXmlToken) throws BicSsoException
+     ...
+         }catch(Exception cred){
+             logger.error("Error occured in decrypting token:",cred.getMessage());
+         }
+         return credential;
+   AFTER:
+     public Credentials getDecryptedCredentials(final String slapiXmlToken, final String channel) throws BicSsoException
+     ...
+         }catch(Exception cred){
+             logger.error("Error occured in decrypting token:",cred.getMessage());
+             // Mythos remediation: Legacy Vulnerability ID a6640101-62aa-432c-b283-f7c87c04cc43; SNOW AVIT32772774
+             throw new BicSsoException("Failed to decrypt SLAPI token", cred);
+         }
+         return credential;
+
+(c) index.jsp — call site (~line 79)
+   BEFORE:
+     slapihelper.setChannel(channel);
+     String slapiXmlToken = cr.getFederatedSecurityToken();
+     ...
+     authCredentials = slapihelper.getDecryptedCredentials(slapiXmlToken);
+   AFTER:
+     String slapiXmlToken = cr.getFederatedSecurityToken();
+     ...
+     authCredentials = slapihelper.getDecryptedCredentials(slapiXmlToken, channel);
+
+Tests (not run 2026-10-13)
+   SlapiTokenHandlerTest.java — +17 lines in PR #39 (not reproduced)
+
+Open items for this change set:
+  - Mac4ApplId missing from all bicsso_config.properties; without it every MAC4 login is denied (O1).
+  - Shared RSA keypair across channels in slapi_config.properties (f024 residual, config-only).
+  - develop -> master promotion, then rescan.
+
+f091 / AVIT32772818 — Before and After Code Changes (captured 2026-10-13)
+=========================================================================
+Source: `git diff 230f5d9^1 230f5d9` (PR #37 merge, on master)
+  8d7fcc0 = IBSDA-96108: fetch Maven dependencies over TLS, not plain HTTP
+            (Karas, Joe, 2026-09-19)
+  Only file changed: pom.xml
+
+1. pom.xml — <repositories> (~line 15)
+   BEFORE:
+     <repositories>
+         <repository>
+             <url>http://artifactory.fis.dev/artifactory/ibsmas-maven-snapshot-virtual</url>
+   AFTER:
+     <!-- Mythos remediation: Legacy Vulnerability ID 429dfc76-90c7-4f3f-ab51-0da68bf306ed; SNOW AVIT32772818 -->
+     <repositories>
+         <repository>
+             <url>https://artifactory.fis.dev/artifactory/ibsmas-maven-snapshot-virtual/</url>
+
+   origin/develop pom.xml has no <repositories> block and no http://artifactory URL
+   (git grep count 0 for both), so there is nothing to change on develop.
+
+Open items for this change set:
+  - Rescan master.
+
+Full detail: docs/plans/dwbo-bic-sso-remediation-plan.md
