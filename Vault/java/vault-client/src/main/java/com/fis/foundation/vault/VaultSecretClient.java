@@ -214,6 +214,12 @@ public final class VaultSecretClient implements SecretClient, TransitClient {
     }
 
     @Override
+    public void invalidateKeyVersion(String keyName) {
+        throwIfClosed();
+        transitVersions.remove(transitKeyName(keyName));
+    }
+
+    @Override
     public String rewrapIfStale(String keyName, String ciphertext) {
         int version = TransitClient.ciphertextVersion(ciphertext);
         return version < getLatestKeyVersion(keyName) ? rewrap(keyName, ciphertext) : ciphertext;

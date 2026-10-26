@@ -53,12 +53,20 @@ public interface TransitClient {
 
     /**
      * Returns {@code latest_version} of a Transit key. Needs {@code read} on {@code <transit>/keys/<name>}.
-     * Cached for the client's cache TTL.
+     * Cached for the client's cache TTL; call {@link #invalidateKeyVersion} after a rotation to see it sooner.
      *
      * @param keyName Transit key name
      * @return the newest key version
      */
     int getLatestKeyVersion(String keyName);
+
+    /**
+     * Drops the cached {@code latest_version} of a Transit key so the next lookup goes to Vault (for example
+     * after a rotation).
+     *
+     * @param keyName Transit key name
+     */
+    void invalidateKeyVersion(String keyName);
 
     /**
      * Rewraps a ciphertext only if an older key version made it. Call it when reading stored data to roll

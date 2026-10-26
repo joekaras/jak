@@ -428,6 +428,30 @@ class VaultSecretClientTest {
     }
 
     @Test
+    void invalidateKeyVersionPicksUpRotationBeforeCacheExpiry() throws Exception {
+        StubVaultServer vault = happyVault();
+        vault.on("GET", "transit/keys/orders", 200, "{\"data\":{\"latest_version\":2,\"min_decryption_version\":1}}");
+        vault.on("POST", "transit/rewrap/orders", 200, "{\"data\":{\"ciphertext\":\"vault:v3:NEW\"}}");
+        // agent() turns caching off; this test needs the version cache on.
+        VaultConfig config = VaultConfig.builder()
+            .address(vault.address())
+            .authMode(AuthMode.AGENT)
+            .cacheTtl(Duration.ofMinutes(5))
+            .maxRetries(0)
+            .build();
+        VaultSecretClient client = new VaultSecretClient(config, new MutableClock(), millis -> { });
+
+        assertEquals("vault:v2:CUR", client.rewrapIfStale("orders", "vault:v2:CUR"));
+        vault.on("GET", "transit/keys/orders", 200, "{\"data\":{\"latest_version\":3,\"min_decryption_version\":1}}");
+        assertEquals("vault:v2:CUR", client.rewrapIfStale("orders", "vault:v2:CUR"), "cached version still served");
+
+        client.invalidateKeyVersion("orders");
+        assertEquals("vault:v3:NEW", client.rewrapIfStale("orders", "vault:v2:CUR"));
+        assertEquals(2, vault.count("GET", "transit/keys/orders"));
+        assertThrows(IllegalArgumentException.class, () -> client.invalidateKeyVersion("a/b"));
+    }
+
+    @Test
     void transitPolicyDenialIsPermissionDenied() throws Exception {
         StubVaultServer vault = happyVault();
         vault.on("POST", "transit/encrypt/orders", 403, "{\"errors\":[\"permission denied\"]}");
