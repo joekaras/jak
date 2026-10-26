@@ -30,7 +30,7 @@ import java.util.Properties;
  * environment variables override it. A secret_id is never accepted as a setting.
  *
  * <p>Property names match the C# client's JSON names, optionally prefixed with {@code vault.}:
- * {@code address, namespace, kvMount, authMode, authMount, roleId, wrappedSecretIdFile, caCertificateFile,
+ * {@code address, namespace, kvMount, transitMount, authMode, authMount, roleId, wrappedSecretIdFile, caCertificateFile,
  * cacheTtlSeconds, connectTimeoutSeconds, requestTimeoutSeconds, maxRetries}.
  */
 public final class VaultConfig {
@@ -38,6 +38,7 @@ public final class VaultConfig {
     private final URI address;
     private final String namespace;
     private final String kvMount;
+    private final String transitMount;
     private final AuthMode authMode;
     private final String authMount;
     private final String roleId;
@@ -53,6 +54,7 @@ public final class VaultConfig {
         this.address = b.address;
         this.namespace = b.namespace;
         this.kvMount = b.kvMount;
+        this.transitMount = b.transitMount;
         this.authMode = b.authMode;
         this.authMount = b.authMount;
         this.roleId = b.roleId;
@@ -106,6 +108,7 @@ public final class VaultConfig {
     public URI getAddress() { return address; }
     public String getNamespace() { return namespace; }
     public String getKvMount() { return kvMount; }
+    public String getTransitMount() { return transitMount; }
     public AuthMode getAuthMode() { return authMode; }
     public String getAuthMount() { return authMount; }
     public String getRoleId() { return roleId; }
@@ -122,6 +125,7 @@ public final class VaultConfig {
         private URI address;
         private String namespace;
         private String kvMount = "secret";
+        private String transitMount = "transit";
         private AuthMode authMode = AuthMode.APPROLE_WRAPPED;
         private String authMount = "approle";
         private String roleId;
@@ -143,6 +147,7 @@ public final class VaultConfig {
 
         public Builder namespace(String value) { this.namespace = value; return this; }
         public Builder kvMount(String value) { this.kvMount = trimSlashes(value); return this; }
+        public Builder transitMount(String value) { this.transitMount = trimSlashes(value); return this; }
         public Builder authMode(AuthMode value) { this.authMode = value; return this; }
         public Builder authMount(String value) { this.authMount = trimSlashes(value); return this; }
         public Builder roleId(String value) { this.roleId = value; return this; }
@@ -168,6 +173,7 @@ public final class VaultConfig {
             applyIfSet(env, "VAULT_ADDR", "address");
             applyIfSet(env, "VAULT_NAMESPACE", "namespace");
             applyIfSet(env, "VAULT_KV_MOUNT", "kvMount");
+            applyIfSet(env, "VAULT_TRANSIT_MOUNT", "transitMount");
             applyIfSet(env, "VAULT_AUTH_MODE", "authMode");
             applyIfSet(env, "VAULT_AUTH_MOUNT", "authMount");
             applyIfSet(env, "VAULT_ROLE_ID", "roleId");
@@ -191,6 +197,9 @@ public final class VaultConfig {
             String scheme = address.getScheme().toLowerCase(Locale.ROOT);
             if (!scheme.equals("https") && !scheme.equals("http")) {
                 throw new IllegalStateException("Vault address must be http or https.");
+            }
+            if (isBlank(transitMount)) {
+                throw new IllegalStateException("Transit mount must not be blank (VAULT_TRANSIT_MOUNT).");
             }
             if (isBlank(kvMount)) {
                 throw new IllegalStateException("KV mount is required (VAULT_KV_MOUNT).");
@@ -235,6 +244,7 @@ public final class VaultConfig {
                 case "address": address(value); break;
                 case "namespace": namespace(value); break;
                 case "kvmount": kvMount(value); break;
+                case "transitmount": transitMount(value); break;
                 case "authmode": authMode(AuthMode.parse(value)); break;
                 case "authmount": authMount(value); break;
                 case "roleid": roleId(value); break;
