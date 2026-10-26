@@ -28,6 +28,10 @@ mvn -pl ibsmas-vault test -Dtest=VaultSecretClientTest#methodName
   `VAULT_*` settings. The AppRole test spends the wrapped secret_id, so every run needs a fresh one. The Transit
   tests also need `VAULT_TRANSIT_TEST_KEY`; the rotation test additionally needs `VAULT_TRANSIT_ROTATE=true` and
   `rotate` permission, and permanently bumps the key version, so don't enable it against a shared Vault casually.
+- `bash it/run.sh` runs all four integration tests against a throwaway local Vault (dev mode) and Vault Agent, then
+  tears them down. It uses Docker when the engine answers, otherwise a local `vault` binary (`VAULT_BIN` or PATH);
+  force one with `IT_MODE=docker|native`. Generated tokens and IDs live in `it/.work/`, which is git-ignored.
+  Under Git Bash, set `MSYS_NO_PATHCONV=1` per command only: exporting it breaks the `mvn` launcher.
 
 ## Modules
 

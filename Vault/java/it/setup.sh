@@ -1,0 +1,97 @@
+#!/usr/bin/env bash
+# Starts a throwaway local Vault (dev mode, in memory) and a Vault Agent for the integration tests, in Docker or
+# as local processes (see lib.sh). Values are random and never printed. Generated state goes to .work/
+# (git-ignored). Tear down with teardown.sh.
+set -euo pipefail
+source "$(dirname "$0")/lib.sh"
+
+if [ -e "$WORK/mode" ]; then
+  echo "A local Vault is already set up; run teardown.sh first." >&2
+  exit 1
+fi
+MODE="$(it_mode)"
+if [ "$MODE" = native ] && ! command -v "$(vault_bin)" >/dev/null 2>&1; then
+  echo "Native mode needs a vault binary: put vault on PATH or set VAULT_BIN (or start Docker)." >&2
+  exit 1
+fi
+
+mkdir -p "$WORK/agent"
+printf '%s' "$MODE" > "$WORK/mode"
+ROOT="$(head -c 24 /dev/urandom | base64 | tr -d '/+=')"
+printf '%s' "$ROOT" > "$WORK/root-token"
+
+if [ "$MODE" = docker ]; then
+  docker network create "$NET" >/dev/null
+  MSYS_NO_PATHCONV=1 docker run -d --name "$SERVER" --network "$NET" --cap-add=IPC_LOCK -p 127.0.0.1:8200:8200 \
+    -e VAULT_DEV_ROOT_TOKEN_ID="$ROOT" -e VAULT_DEV_LISTEN_ADDRESS=0.0.0.0:8200 "$IMAGE" >/dev/null
+else
+  start_bg server "$(vault_bin)" server -dev -dev-root-token-id="$ROOT" -dev-listen-address=127.0.0.1:8200
+fi
+
+for i in $(seq 1 30); do v status >/dev/null 2>&1 && break; sleep 1; done
+v status >/dev/null
+
+# KV v2 is mounted at secret/ in dev mode. These paths match PocCheck's defaults.
+v kv put secret/poc/snowflake user=it-user account=it-account \
+  password="$(head -c 18 /dev/urandom | base64)" >/dev/null
+v kv put secret/poc/keys aes256="$(head -c 32 /dev/urandom | base64)" >/dev/null
+
+v secrets enable transit >/dev/null
+v write -f transit/keys/orders >/dev/null
+
+v policy write it-read - >/dev/null <<'EOF'
+path "secret/data/poc/*" { capabilities = ["read"] }
+path "transit/encrypt/orders" { capabilities = ["update"] }
+path "transit/decrypt/orders" { capabilities = ["update"] }
+path "transit/rewrap/orders"  { capabilities = ["update"] }
+path "transit/keys/orders"    { capabilities = ["read"] }
+# Local only: lets the rotation integration test rotate the key.
+path "transit/keys/orders/rotate" { capabilities = ["update"] }
+EOF
+
+v auth enable approle >/dev/null
+# App role: single-use secret_id, like production delivery.
+v write auth/approle/role/it token_policies=it-read token_ttl=10m token_max_ttl=30m secret_id_num_uses=1 >/dev/null
+# Agent role: reusable secret_id so the agent can re-authenticate.
+v write auth/approle/role/it-agent token_policies=it-read token_ttl=10m token_max_ttl=30m >/dev/null
+
+v read -field=role_id auth/approle/role/it/role-id > "$WORK/role-id"
+v read -field=role_id auth/approle/role/it-agent/role-id > "$WORK/agent/role-id"
+v write -field=secret_id -f auth/approle/role/it-agent/secret-id > "$WORK/agent/secret-id"
+
+# The agent sees its files at /agent inside the container, or at their real path when run locally.
+if [ "$MODE" = docker ]; then
+  AGENT_DIR=/agent VAULT_URL="http://$SERVER:8200" LISTEN=0.0.0.0:8100
+else
+  AGENT_DIR="$(hostpath "$WORK/agent")" VAULT_URL=http://127.0.0.1:8200 LISTEN=127.0.0.1:8100
+fi
+cat > "$WORK/agent/agent.hcl" <<EOF
+vault { address = "$VAULT_URL" }
+auto_auth {
+  method "approle" {
+    config = {
+      role_id_file_path                   = "$AGENT_DIR/role-id"
+      secret_id_file_path                 = "$AGENT_DIR/secret-id"
+      remove_secret_id_file_after_reading = false
+    }
+  }
+}
+api_proxy { use_auto_auth_token = "force" }
+listener "tcp" {
+  address     = "$LISTEN"
+  tls_disable = true
+}
+EOF
+
+if [ "$MODE" = docker ]; then
+  MSYS_NO_PATHCONV=1 docker run -d --name "$AGENT" --network "$NET" -p 127.0.0.1:8100:8100 \
+    -v "$(hostpath "$WORK/agent")":/agent "$IMAGE" agent -config=/agent/agent.hcl >/dev/null
+else
+  start_bg agent "$(vault_bin)" agent -config="$(hostpath "$WORK/agent/agent.hcl")"
+fi
+
+for i in $(seq 1 30); do
+  curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8100/v1/auth/token/lookup-self | grep -q 200 && break
+  sleep 1
+done
+echo "mode: $MODE server: $(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8200/v1/sys/health) agent lookup-self: $(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8100/v1/auth/token/lookup-self)"
