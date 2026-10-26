@@ -1,6 +1,9 @@
 # Build output
 [Bb]in/
 [Oo]bj/
+# Maven
+target/
+dependency-reduced-pom.xml
 # ...but keep agent skill tool binaries
 !**/skills/**/scripts/bin/
 [Ll]og/

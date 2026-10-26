@@ -1,4 +1,0 @@
--------------------------------------------------------------------------------
-Test set: com.fis.foundation.vault.VaultConfigTest
--------------------------------------------------------------------------------
-Tests run: 7, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.374 s -- in com.fis.foundation.vault.VaultConfigTest
