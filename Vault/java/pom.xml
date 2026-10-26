@@ -4,13 +4,6 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
 
-  <!-- FIS corporate parent, same as dwbo-bic-sso: supplies the JFrog repositories and distributionManagement. -->
-  <parent>
-    <groupId>com.fisglobal</groupId>
-    <artifactId>fis-mvn-parent</artifactId>
-    <version>1.1.1</version>
-    <relativePath/>
-  </parent>
 
   <groupId>com.fis.foundation.vault</groupId>
   <artifactId>vault-parent</artifactId>
