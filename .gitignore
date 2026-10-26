@@ -5,7 +5,7 @@
 target/
 dependency-reduced-pom.xml
 # Local Vault integration-test state (tokens, role IDs, wrapped secret_id)
-Vault/java/it/.work/
+ibsmas-vault/java/it/.work/
 # ...but keep agent skill tool binaries
 !**/skills/**/scripts/bin/
 [Ll]og/
