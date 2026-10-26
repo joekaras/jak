@@ -11,7 +11,7 @@ VAULT_VERSION="${IT_VAULT_VERSION:-1.18.3}"
 IMAGE="hashicorp/vault:$VAULT_VERSION"
 NET=ibsmas-vault-it-net
 SERVER=ibsmas-vault-it
-AGENT=ibsmas-vault-it-agent
+PROXY=ibsmas-vault-it-proxy
 
 # A path a Windows program can read. cygpath -m gives C:/..., which HCL and Java accept without escaping.
 hostpath() { if command -v cygpath >/dev/null 2>&1; then cygpath -m "$1"; else printf '%s' "$1"; fi; }

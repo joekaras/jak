@@ -16,16 +16,17 @@ bash it/run.sh            # extra arguments go to mvn, for example: bash it/run.
 
 It runs these steps, and tears everything down even if the tests fail:
 
-1. Starts **Vault 1.18.3** in dev mode on `127.0.0.1:8200`, and **Vault Agent** with AppRole auto-auth on
-   `127.0.0.1:8100`.
+1. Starts **Vault 1.18.3** in dev mode on `127.0.0.1:8200`, and **Vault Proxy** (`vault proxy`) with AppRole
+   auto-auth on `127.0.0.1:8100`.
 2. Seeds the test data:
    - KV v2 `secret/poc/snowflake` (credential) and `secret/poc/keys` (`aes256`, 32 random bytes);
    - Transit key `orders`;
    - policy `it-read`: read-only on those, plus `rotate` on the Transit key for the rotation test;
-   - AppRole role `it`, whose secret_id can be used **once** (like production delivery), and role `it-agent`, whose
-     secret_id is reusable so the Agent can log in again.
+   - AppRole role `it`, whose secret_id can be used **once** (like production delivery), and role `it-proxy`, whose
+     secret_id is reusable so the proxy can log in again.
 3. Writes a response-wrapped secret_id for role `it`.
-4. Runs all four `IntegrationTest` cases: AppRole read, Agent read, Transit round trip, Transit rotation.
+4. Runs all four `IntegrationTest` cases: AppRole read, proxy read, Transit round trip, Transit rotation. (The test
+   class still calls the proxy address `VAULT_AGENT_ADDR`, for historical reasons.)
 
 Expected: `Tests run: 4, Failures: 0, Errors: 0, Skipped: 0`.
 
@@ -63,7 +64,7 @@ Native mode on Linux and macOS isn't tested yet. It stops processes with `kill` 
 Use these to keep a Vault running while you work on a sample:
 
 ```sh
-bash it/setup.sh       # start and seed; prints "mode: ... server: 200 agent lookup-self: 200"
+bash it/setup.sh       # start and seed; prints "mode: ... server: 200 proxy lookup-self: 200"
 bash it/wrap.sh        # write a fresh wrapped secret_id to it/.work/wrapped.json (each test run spends one)
 bash it/teardown.sh    # stop everything and delete it/.work/
 ```
@@ -88,7 +89,7 @@ AppRole over `http` is allowed only because the server is on loopback. Everywher
 
 ## Generated files
 
-`it/.work/` holds the dev root token, the role IDs, the Agent's secret_id and the wrapped secret_id. It's in
+`it/.work/` holds the dev root token, the role IDs, the proxy's secret_id and the wrapped secret_id. It's in
 `.gitignore`, and `teardown.sh` deletes it. They're throwaway values, but treat the folder as secret anyway.
 
 ## Running the integration tests against another Vault
