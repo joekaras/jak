@@ -1,7 +1,0 @@
-{
-  "address": "http://127.0.0.1:8100",
-  "namespace": "REPLACE-dev-namespace",
-  "kvMount": "REPLACE-kv-mount",
-  "authMode": "agent",
-  "cacheTtlSeconds": 300
-}
