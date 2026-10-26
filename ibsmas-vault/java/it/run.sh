@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Runs all IntegrationTest cases against a throwaway local Vault and Vault Agent, then tears them down.
+# Runs all IntegrationTest cases against a throwaway local Vault and Vault Proxy, then tears them down.
 # Needs curl, Maven, and either Docker or a vault binary (see lib.sh). Extra arguments go to mvn.
 set -euo pipefail
 source "$(dirname "$0")/lib.sh"

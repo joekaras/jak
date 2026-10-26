@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Starts a throwaway local Vault (dev mode, in memory) and a Vault Agent for the integration tests, in Docker or
+# Starts a throwaway local Vault (dev mode, in memory) and a Vault Proxy for the integration tests, in Docker or
 # as local processes (see lib.sh). Values are random and never printed. Generated state goes to .work/
 # (git-ignored). Tear down with teardown.sh.
 set -euo pipefail
@@ -23,7 +23,7 @@ if [ "$MODE" = native ]; then
   fi
 fi
 
-mkdir -p "$WORK/agent"
+mkdir -p "$WORK/proxy"
 printf '%s' "$MODE" > "$WORK/mode"
 ROOT="$(head -c 24 /dev/urandom | base64 | tr -d '/+=')"
 printf '%s' "$ROOT" > "$WORK/root-token"
@@ -60,26 +60,26 @@ EOF
 v auth enable approle >/dev/null
 # App role: single-use secret_id, like production delivery.
 v write auth/approle/role/it token_policies=it-read token_ttl=10m token_max_ttl=30m secret_id_num_uses=1 >/dev/null
-# Agent role: reusable secret_id so the agent can re-authenticate.
-v write auth/approle/role/it-agent token_policies=it-read token_ttl=10m token_max_ttl=30m >/dev/null
+# Proxy role: reusable secret_id so the proxy can re-authenticate.
+v write auth/approle/role/it-proxy token_policies=it-read token_ttl=10m token_max_ttl=30m >/dev/null
 
 v read -field=role_id auth/approle/role/it/role-id > "$WORK/role-id"
-v read -field=role_id auth/approle/role/it-agent/role-id > "$WORK/agent/role-id"
-v write -field=secret_id -f auth/approle/role/it-agent/secret-id > "$WORK/agent/secret-id"
+v read -field=role_id auth/approle/role/it-proxy/role-id > "$WORK/proxy/role-id"
+v write -field=secret_id -f auth/approle/role/it-proxy/secret-id > "$WORK/proxy/secret-id"
 
-# The agent sees its files at /agent inside the container, or at their real path when run locally.
+# The proxy sees its files at /proxy inside the container, or at their real path when run locally.
 if [ "$MODE" = docker ]; then
-  AGENT_DIR=/agent VAULT_URL="http://$SERVER:8200" LISTEN=0.0.0.0:8100
+  PROXY_DIR=/proxy VAULT_URL="http://$SERVER:8200" LISTEN=0.0.0.0:8100
 else
-  AGENT_DIR="$(hostpath "$WORK/agent")" VAULT_URL=http://127.0.0.1:8200 LISTEN=127.0.0.1:8100
+  PROXY_DIR="$(hostpath "$WORK/proxy")" VAULT_URL=http://127.0.0.1:8200 LISTEN=127.0.0.1:8100
 fi
-cat > "$WORK/agent/agent.hcl" <<EOF
+cat > "$WORK/proxy/proxy.hcl" <<EOF
 vault { address = "$VAULT_URL" }
 auto_auth {
   method "approle" {
     config = {
-      role_id_file_path                   = "$AGENT_DIR/role-id"
-      secret_id_file_path                 = "$AGENT_DIR/secret-id"
+      role_id_file_path                   = "$PROXY_DIR/role-id"
+      secret_id_file_path                 = "$PROXY_DIR/secret-id"
       remove_secret_id_file_after_reading = false
     }
   }
@@ -92,14 +92,14 @@ listener "tcp" {
 EOF
 
 if [ "$MODE" = docker ]; then
-  MSYS_NO_PATHCONV=1 docker run -d --name "$AGENT" --network "$NET" -p 127.0.0.1:8100:8100 \
-    -v "$(hostpath "$WORK/agent")":/agent "$IMAGE" agent -config=/agent/agent.hcl >/dev/null
+  MSYS_NO_PATHCONV=1 docker run -d --name "$PROXY" --network "$NET" -p 127.0.0.1:8100:8100 \
+    -v "$(hostpath "$WORK/proxy")":/proxy "$IMAGE" proxy -config=/proxy/proxy.hcl >/dev/null
 else
-  start_bg agent "$(vault_bin)" agent -config="$(hostpath "$WORK/agent/agent.hcl")"
+  start_bg proxy "$(vault_bin)" proxy -config="$(hostpath "$WORK/proxy/proxy.hcl")"
 fi
 
 for i in $(seq 1 30); do
   curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8100/v1/auth/token/lookup-self | grep -q 200 && break
   sleep 1
 done
-echo "mode: $MODE server: $(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8200/v1/sys/health) agent lookup-self: $(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8100/v1/auth/token/lookup-self)"
+echo "mode: $MODE server: $(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8200/v1/sys/health) proxy lookup-self: $(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8100/v1/auth/token/lookup-self)"
