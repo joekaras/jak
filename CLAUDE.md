@@ -9,6 +9,17 @@ hosts that show it running under Tomcat 9, as a Windows service (WinSW), and as 
 written as a port of a C# `Vault.Client`, which was removed from this repo in commit `85b50ac`. Some comments still
 reference the C# client (for example `TokenManager.shouldRenew` says "keep the two in step").
 
+Developer docs live in `ibsmas-vault/README.md` and `ibsmas-vault/docs/`:
+1. using the client;
+2. the samples;
+3. a local Vault;
+4. an on-prem Docker Vault;
+5. the UNIT/OPAC/OPIN/OPER tiers and production;
+6. open questions on secret_id delivery and Vault Proxy.
+
+Each doc marks what was actually tested. Keep those marks accurate when behaviour changes. Vault Agent's API-proxy
+feature is deprecated in favour of `vault proxy`; the client's `agent` auth mode works with both.
+
 ## Build and test
 
 Run from `ibsmas-vault/java`. The POM targets Java 8; the `release-8` profile turns on for JDK 9+ so the build still
