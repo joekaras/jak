@@ -25,7 +25,9 @@ mvn -pl ibsmas-vault test -Dtest=VaultSecretClientTest#methodName
 - Unit tests run against `StubVaultServer`, an in-process HTTP stub, so they need no Vault.
 - `IntegrationTest` is tagged `integration` but surefire doesn't exclude it. It skips itself unless env vars are
   set: `VAULT_WRAPPED_SECRET_ID_FILE` (AppRole) or `VAULT_AGENT_ADDR` (Agent), plus `VAULT_TEST_PATH` and the usual
-  `VAULT_*` settings. The AppRole test spends the wrapped secret_id, so every run needs a fresh one.
+  `VAULT_*` settings. The AppRole test spends the wrapped secret_id, so every run needs a fresh one. The Transit
+  tests also need `VAULT_TRANSIT_TEST_KEY`; the rotation test additionally needs `VAULT_TRANSIT_ROTATE=true` and
+  `rotate` permission, and permanently bumps the key version, so don't enable it against a shared Vault casually.
 
 ## Modules
 
