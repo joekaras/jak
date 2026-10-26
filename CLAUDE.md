@@ -4,14 +4,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this repo is
 
-The only live code is `Vault/java`: a dependency-free Java 8 client for HashiCorp Vault KV v2, plus proof-of-concept
+The only live code is `ibsmas-vault/java`: a dependency-free Java 8 client for HashiCorp Vault KV v2, plus proof-of-concept
 hosts that show it running under Tomcat 9, as a Windows service (WinSW), and as a Linux systemd unit. It was
 written as a port of a C# `Vault.Client`, which was removed from this repo in commit `85b50ac`. Some comments still
 reference the C# client (for example `TokenManager.shouldRenew` says "keep the two in step").
 
 ## Build and test
 
-Run from `Vault/java`. The POM targets Java 8; the `release-8` profile turns on for JDK 9+ so the build still
+Run from `ibsmas-vault/java`. The POM targets Java 8; the `release-8` profile turns on for JDK 9+ so the build still
 compiles against the Java 8 API.
 
 ```sh
@@ -86,6 +86,6 @@ These invariants span files and are easy to break:
 
 ## Repo housekeeping
 
-- `.gitignore` is written for .NET and doesn't cover Maven `target/` folders. Build output under
-  `Vault/java/*/target/` is committed, so expect it in diffs after a build.
+- `.gitignore` ignores Maven `target/` folders and the shade plugin's `dependency-reduced-pom.xml`, so builds leave
+  the working tree clean.
 - `.gitattributes` forces LF line endings except for `*.cmd` and `*.bat`.
