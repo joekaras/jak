@@ -68,8 +68,7 @@ These invariants span files and are easy to break:
 
 ## Conventions
 
-- Every Java file starts with the FIS copyright header and the Claude Code attribution comment. Add both to new
-  files.
+- Every Java file starts with the Claude Code attribution comment. Add it to new files.
 - **Never log, print, or put secret values into exception messages.** Error messages name paths and keys only.
   The JSON-parse error path in the authenticator avoids echoing the file's contents on purpose. Callers wipe key
   bytes with `Arrays.fill`.
