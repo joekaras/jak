@@ -3,13 +3,14 @@
   then run (elevated): vault-poc.exe install
 
   Run the service as a dedicated low-privilege account and restrict C:\apps\vault-poc\secrets so only that
-  account can read it. The recommended mode on Windows is Agent: a Vault Agent service on the same box
-  listens on 127.0.0.1:8100, and this app holds no credential at all.
+  account can read it. The recommended mode on Windows is proxy: a Vault Proxy service on the same box
+  listens on 127.0.0.1:8100, and this app holds no credential at all. The client's auth mode for this is still
+  named "agent"; it works with Vault Proxy (preferred) or Vault Agent.
 -->
 <service>
   <id>vault-poc-java</id>
   <name>Vault POC (Java)</name>
-  <description>Reads test secrets from Vault through the local Vault Agent.</description>
+  <description>Reads test secrets from Vault through the local Vault Proxy.</description>
   <executable>%JAVA_HOME%\bin\java.exe</executable>
   <arguments>-jar "%BASE%\vault-poc-windows.jar"</arguments>
   <workingdirectory>%BASE%</workingdirectory>
