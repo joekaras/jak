@@ -30,7 +30,9 @@ mvn -pl ibsmas-vault test -Dtest=VaultSecretClientTest#methodName
   `rotate` permission, and permanently bumps the key version, so don't enable it against a shared Vault casually.
 - `bash it/run.sh` runs all four integration tests against a throwaway local Vault (dev mode) and Vault Agent, then
   tears them down. It uses Docker when the engine answers, otherwise a local `vault` binary (`VAULT_BIN` or PATH);
-  force one with `IT_MODE=docker|native`. Generated tokens and IDs live in `it/.work/`, which is git-ignored.
+  force one with `IT_MODE=docker|native`. Both modes are pinned to Vault 1.18.3 (`VAULT_VERSION` in `it/lib.sh`); a
+  native binary of any other version is refused unless `IT_VAULT_VERSION` says otherwise. Generated tokens and IDs
+  live in `it/.work/`, which is git-ignored.
   Under Git Bash, set `MSYS_NO_PATHCONV=1` per command only: exporting it breaks the `mvn` launcher.
 
 ## Modules

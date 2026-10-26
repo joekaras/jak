@@ -14,6 +14,14 @@ if [ "$MODE" = native ] && ! command -v "$(vault_bin)" >/dev/null 2>&1; then
   echo "Native mode needs a vault binary: put vault on PATH or set VAULT_BIN (or start Docker)." >&2
   exit 1
 fi
+if [ "$MODE" = native ]; then
+  FOUND="$("$(vault_bin)" version | sed -n 's/^Vault v\([^ ]*\).*/\1/p')"
+  if [ "$FOUND" != "$VAULT_VERSION" ]; then
+    echo "vault is $FOUND but the tests are pinned to $VAULT_VERSION." >&2
+    echo "Install it (winget install Hashicorp.Vault --version $VAULT_VERSION --force) or set IT_VAULT_VERSION." >&2
+    exit 1
+  fi
+fi
 
 mkdir -p "$WORK/agent"
 printf '%s' "$MODE" > "$WORK/mode"

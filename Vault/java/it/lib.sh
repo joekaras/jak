@@ -6,7 +6,9 @@
 
 IT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WORK="$IT_DIR/.work"
-IMAGE=hashicorp/vault:1.18.3
+# One Vault version for both modes, so Docker and native runs test the same server. IT_VAULT_VERSION overrides it.
+VAULT_VERSION="${IT_VAULT_VERSION:-1.18.3}"
+IMAGE="hashicorp/vault:$VAULT_VERSION"
 NET=ibsmas-vault-it-net
 SERVER=ibsmas-vault-it
 AGENT=ibsmas-vault-it-agent
