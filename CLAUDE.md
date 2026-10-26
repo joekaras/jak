@@ -16,9 +16,9 @@ compiles against the Java 8 API.
 
 ```sh
 mvn package                                         # build all modules, run unit tests
-mvn -pl vault-client test                           # library tests only
-mvn -pl vault-client test -Dtest=VaultConfigTest    # one test class
-mvn -pl vault-client test -Dtest=VaultSecretClientTest#methodName
+mvn -pl ibsmas-vault test                           # library tests only
+mvn -pl ibsmas-vault test -Dtest=VaultConfigTest    # one test class
+mvn -pl ibsmas-vault test -Dtest=VaultSecretClientTest#methodName
 ```
 
 - The project has no corporate parent POM and pulls everything from Maven Central.
@@ -29,7 +29,7 @@ mvn -pl vault-client test -Dtest=VaultSecretClientTest#methodName
 
 ## Modules
 
-- `vault-client`: the library. Its only dependency is JUnit, and only for tests. Keep it that way: the JSON parser
+- `ibsmas-vault`: the library. Its only dependency is JUnit, and only for tests. Keep it that way: the JSON parser
   (`internal/Json`) and the HTTP layer are hand-written because the library can't pull in dependencies.
 - `poc-common`: `PocCheck` reads a credential and a 32-byte AES key, proves the key with an AES-GCM round trip,
   wipes it, and reports key names only. `PocDaemon` runs that check on a loop and closes the client on shutdown.
@@ -37,7 +37,7 @@ mvn -pl vault-client test -Dtest=VaultSecretClientTest#methodName
   definitions are in each module's `service/` folder.
 - `poc-tomcat`: WAR. `VaultContextListener` builds one client per web app and closes it on undeploy.
 
-## Architecture of `vault-client`
+## Architecture of `ibsmas-vault`
 
 Requests go through four layers:
 

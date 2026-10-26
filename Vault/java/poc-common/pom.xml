@@ -5,7 +5,7 @@
   <modelVersion>4.0.0</modelVersion>
 
   <parent>
-    <groupId>vault</groupId>
+    <groupId>ibsmas</groupId>
     <artifactId>vault-parent</artifactId>
     <version>0.1.0</version>
   </parent>
@@ -15,8 +15,8 @@
 
   <dependencies>
     <dependency>
-      <groupId>vault</groupId>
-      <artifactId>vault-client</artifactId>
+      <groupId>ibsmas</groupId>
+      <artifactId>ibsmas-vault</artifactId>
       <version>${project.version}</version>
     </dependency>
   </dependencies>

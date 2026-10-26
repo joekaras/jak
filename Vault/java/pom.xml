@@ -5,14 +5,14 @@
   <modelVersion>4.0.0</modelVersion>
 
 
-  <groupId>vault</groupId>
+  <groupId>ibsmas</groupId>
   <artifactId>vault-parent</artifactId>
   <version>0.1.0</version>
   <packaging>pom</packaging>
   <name>Vault client (parent)</name>
 
   <modules>
-    <module>vault-client</module>
+    <module>ibsmas-vault</module>
     <module>poc-common</module>
     <module>poc-tomcat</module>
     <module>poc-windows</module>
