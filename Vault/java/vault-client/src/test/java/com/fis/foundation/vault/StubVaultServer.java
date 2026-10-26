@@ -145,7 +145,12 @@ final class StubVaultServer implements AutoCloseable {
                 requests.add(recorded);
             }
 
-            Handler handler = routes.get(recorded.method + " " + path);
+            // A route registered with "?query" wins over the bare path.
+            String query = exchange.getRequestURI().getRawQuery();
+            Handler handler = query == null ? null : routes.get(recorded.method + " " + path + "?" + query);
+            if (handler == null) {
+                handler = routes.get(recorded.method + " " + path);
+            }
             Response response = handler == null ? new Response(404, "{\"errors\":[]}") : handler.handle(recorded);
 
             byte[] bytes = response.body.getBytes(StandardCharsets.UTF_8);

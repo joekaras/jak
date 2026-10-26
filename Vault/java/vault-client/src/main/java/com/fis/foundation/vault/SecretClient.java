@@ -52,6 +52,37 @@ public interface SecretClient extends Closeable {
     byte[] getKey(String path, String key, int expectedLength);
 
     /**
+     * Reads one KV v2 version of a secret. Use it to decrypt data written under a key that has since been
+     * rotated: record {@link #getCurrentVersion} next to the ciphertext, then read that version back here.
+     *
+     * @param path    secret path under the KV mount
+     * @param version KV version, 1 or greater
+     * @return unmodifiable key/value pairs of that version
+     * @throws VaultNotFoundException when the version does not exist, or was deleted or destroyed
+     */
+    Map<String, String> getSecretVersion(String path, int version);
+
+    /**
+     * Like {@link #getKey(String, String, int)}, but for one KV v2 version.
+     *
+     * @param path           secret path under the KV mount
+     * @param key            key within the secret
+     * @param expectedLength required length in bytes
+     * @param version        KV version, 1 or greater
+     * @return a new array with the decoded key bytes; the caller wipes it
+     */
+    byte[] getKey(String path, String key, int expectedLength, int version);
+
+    /**
+     * Returns the KV v2 version that {@link #getSecret(String)} currently serves for a path. A rotation shows
+     * up here once the cache entry expires or the path is invalidated.
+     *
+     * @param path secret path under the KV mount
+     * @return the version number
+     */
+    int getCurrentVersion(String path);
+
+    /**
      * Removes a path from the cache so the next read goes to Vault (for example after a rotation).
      *
      * @param path secret path under the KV mount

@@ -27,6 +27,7 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
 import java.util.Map;
@@ -346,6 +347,113 @@ class VaultSecretClientTest {
             assertThrows(IllegalArgumentException.class, () -> client.getSecret(bad), bad);
         }
         assertTrue(vault.requests().isEmpty());
+    }
+
+    // ---- Key rotation: KV versions -----------------------------------------------------------------
+
+    @Test
+    void oldKeyVersionStaysReadableAfterRotation() throws Exception {
+        StubVaultServer vault = happyVault();
+        vault.on("GET", "secret/data/app/keys", 200, kvKey(2));
+        vault.on("GET", "secret/data/app/keys?version=1", 200, kvKey(1));
+        VaultSecretClient client = agent(vault);
+
+        assertEquals(2, client.getCurrentVersion("app/keys"));
+        byte[] current = client.getKey("app/keys", "aes256", 32);
+        byte[] previous = client.getKey("app/keys", "aes256", 32, 1);
+
+        assertEquals(2, current[0]);
+        assertEquals(1, previous[0]);
+        assertThrows(IllegalArgumentException.class, () -> client.getSecretVersion("app/keys", 0));
+    }
+
+    @Test
+    void rotationIsPickedUpWhenCacheExpiresOrOnInvalidate() throws Exception {
+        StubVaultServer vault = happyVault();
+        final AtomicInteger version = new AtomicInteger(3);
+        vault.on("GET", "secret/data/app/keys", r -> new StubVaultServer.Response(200, kvKey(version.get())));
+        MutableClock clock = new MutableClock();
+        VaultSecretClient client = appRole(vault, wrappedFile(StubVaultServer.WRAPPING_TOKEN), Duration.ofMinutes(5), clock);
+
+        assertEquals(3, client.getCurrentVersion("app/keys"));
+        version.set(4);
+        assertEquals(3, client.getCurrentVersion("app/keys"), "cached until the TTL runs out");
+
+        clock.advance(Duration.ofMinutes(6));
+        assertEquals(4, client.getCurrentVersion("app/keys"));
+
+        version.set(5);
+        client.invalidate("app/keys");
+        assertEquals(5, client.getCurrentVersion("app/keys"));
+    }
+
+    @Test
+    void deletedVersionIsNotFound() throws Exception {
+        StubVaultServer vault = happyVault();
+        vault.on("GET", "secret/data/app/keys?version=1", 404, "{\"errors\":[]}");
+        VaultSecretClient client = agent(vault);
+
+        assertThrows(VaultNotFoundException.class, () -> client.getKey("app/keys", "aes256", 32, 1));
+    }
+
+    // ---- Key rotation: Transit ---------------------------------------------------------------------
+
+    @Test
+    void transitEncryptAndDecryptRoundTrip() throws Exception {
+        StubVaultServer vault = happyVault();
+        vault.on("POST", "transit/encrypt/orders", 200, "{\"data\":{\"ciphertext\":\"vault:v1:CIPHER\"}}");
+        vault.on("POST", "transit/decrypt/orders", 200, "{\"data\":{\"plaintext\":\"aGVsbG8=\"}}");
+        VaultSecretClient client = agent(vault);
+
+        String ciphertext = client.encrypt("orders", "hello".getBytes(StandardCharsets.UTF_8));
+        byte[] plaintext = client.decrypt("orders", ciphertext);
+
+        assertEquals("vault:v1:CIPHER", ciphertext);
+        assertEquals("hello", new String(plaintext, StandardCharsets.UTF_8));
+        List<StubVaultServer.Recorded> requests = vault.requests();
+        assertTrue(requests.get(0).body.contains("\"plaintext\":\"aGVsbG8=\""));
+        assertTrue(requests.get(1).body.contains("\"ciphertext\":\"vault:v1:CIPHER\""));
+    }
+
+    @Test
+    void rewrapIfStaleOnlyRewrapsOlderVersions() throws Exception {
+        StubVaultServer vault = happyVault();
+        vault.on("GET", "transit/keys/orders", 200, "{\"data\":{\"latest_version\":2,\"min_decryption_version\":1}}");
+        vault.on("POST", "transit/rewrap/orders", 200, "{\"data\":{\"ciphertext\":\"vault:v2:NEW\"}}");
+        VaultSecretClient client = agent(vault);
+
+        assertEquals("vault:v2:NEW", client.rewrapIfStale("orders", "vault:v1:OLD"));
+        assertEquals("vault:v2:NEW", client.rewrapIfStale("orders", "vault:v2:NEW"));
+        assertEquals(1, vault.count("POST", "transit/rewrap/orders"));
+    }
+
+    @Test
+    void transitPolicyDenialIsPermissionDenied() throws Exception {
+        StubVaultServer vault = happyVault();
+        vault.on("POST", "transit/encrypt/orders", 403, "{\"errors\":[\"permission denied\"]}");
+        VaultSecretClient client = agent(vault);
+
+        VaultPermissionDeniedException ex = assertThrows(VaultPermissionDeniedException.class,
+            () -> client.encrypt("orders", new byte[] {1}));
+        assertTrue(ex.getMessage().contains("orders"));
+        assertThrows(IllegalArgumentException.class, () -> client.encrypt("a/b", new byte[] {1}));
+    }
+
+    @Test
+    void ciphertextVersionParsesPrefixAndNeverEchoesInput() {
+        assertEquals(1, TransitClient.ciphertextVersion("vault:v1:abc="));
+        assertEquals(12, TransitClient.ciphertextVersion("vault:v12:abc="));
+        for (String bad : new String[] {"", "vault:abc", "vault:v:abc", "vault:vX:abc", "plain:v1:abc", "vault:v0:abc", "vault:v1"}) {
+            VaultException ex = assertThrows(VaultException.class, () -> TransitClient.ciphertextVersion(bad), bad);
+            assertFalse(!bad.isEmpty() && ex.getMessage().contains(bad), "message must not echo the ciphertext");
+        }
+    }
+
+    private static String kvKey(int version) {
+        byte[] key = new byte[32];
+        Arrays.fill(key, (byte) version);
+        return "{\"data\":{\"data\":{\"aes256\":\"" + Base64.getEncoder().encodeToString(key)
+            + "\"},\"metadata\":{\"version\":" + version + "}}}";
     }
 
     // ---- Helpers -----------------------------------------------------------------------------------
