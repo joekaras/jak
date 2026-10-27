@@ -1,0 +1,48 @@
+# Proves the client builds and passes its unit tests on every supported JDK, and that the jar it produces still
+# targets Java 8 whichever JDK built it. The integration tests skip themselves (no Vault here).
+name: build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: JDK ${{ matrix.java }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        java: ['8', '17', '21']
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ matrix.java }}
+          cache: maven
+
+      - name: Build and test
+        working-directory: ibsmas-vault/java
+        run: mvn --batch-mode --no-transfer-progress install
+
+      - name: Check the jar targets Java 8 (class-file version 52)
+        working-directory: ibsmas-vault/java
+        run: |
+          unzip -o -q ibsmas-vault/target/ibsmas-vault-0.1.0.jar ibsmas/vault/VaultSecretClient.class -d /tmp/cls
+          major=$(od -An -tu1 -j6 -N2 /tmp/cls/ibsmas/vault/VaultSecretClient.class | awk '{print $1*256+$2}')
+          echo "class-file major version: $major"
+          test "$major" -eq 52
+
+      - name: Test report
+        if: always()
+        working-directory: ibsmas-vault/java
+        run: |
+          for f in ibsmas-vault/target/surefire-reports/TEST-*.xml; do
+            grep -o '<testsuite [^>]*' "$f" | grep -oE 'name="[^"]*"|tests="[0-9]*"|failures="[0-9]*"|errors="[0-9]*"|skipped="[0-9]*"' | tr '\n' ' '; echo
+          done
