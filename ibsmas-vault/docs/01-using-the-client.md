@@ -224,8 +224,12 @@ Values cached in memory are as sensitive as the secrets themselves. Keep the TTL
 
 ## 9. TLS
 
-- **Version:** TLS 1.2 only, on every connection. The client pins it explicitly, because on Java 8 a context named
-  "TLSv1.2" still allows 1.0 and 1.1.
+- **Version:** TLS 1.3 where the runtime has it (Java 8u261 and later), otherwise TLS 1.2. Never 1.0 or 1.1, which
+  Java 8 would allow by default.
+- **Cipher suites:** only suites with forward secrecy and AEAD: the TLS 1.3 suites, and ECDHE with AES-GCM or
+  ChaCha20-Poly1305. No CBC and no static RSA key exchange. Vault's default TLS configuration offers these.
+- **Response size:** bodies over 4 MiB are rejected with `VaultException` instead of being buffered, so a broken
+  or hostile endpoint can't exhaust memory.
 - **Trust:** set `VAULT_CACERT` to a PEM bundle to trust your internal CA. Without it, the JVM's default trust store
   is used.
 - **Host name checks:** always on.
