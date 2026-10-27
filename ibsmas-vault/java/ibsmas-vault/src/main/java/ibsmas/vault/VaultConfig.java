@@ -266,7 +266,8 @@ public final class VaultConfig {
                 return false;
             }
             String h = host.toLowerCase(Locale.ROOT);
-            return h.equals("localhost") || h.startsWith("127.") || h.equals("[::1]") || h.equals("::1");
+            // A whole 127/8 address, not a prefix: "127.0.0.1.example.com" is a remote host.
+            return h.equals("localhost") || h.matches("127\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}") || h.equals("[::1]") || h.equals("::1");
         }
 
         private static boolean isBlank(String s) {

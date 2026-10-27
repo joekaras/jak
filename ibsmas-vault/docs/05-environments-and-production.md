@@ -110,7 +110,7 @@ A single container is fine for UNIT and OPAC. OPIN and OPER need the following. 
   - certificates from the internal CA;
   - `tls_min_version = "tls12"`;
   - a SAN for the load-balancer name and each node.
-  The client pins TLS 1.2 regardless.
+  The client allows only TLS 1.3/1.2 and ECDHE+AEAD cipher suites regardless.
 - **Unsealing:** auto-unseal with an HSM or cloud KMS, so a restart doesn't need key custodians at 3 a.m. Keep
   recovery-key shares with named custodians.
 - **Audit:**

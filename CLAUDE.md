@@ -70,8 +70,9 @@ Requests go through four layers:
    reads per path, versioned reads per `path@vN`, and Transit `latest_version` per key.
 3. `TokenManager` owns the token lifecycle: log in on first use, renew at two-thirds of the TTL, and revoke on
    `close()`. In `agent` mode the authenticator is `null`, and the local Vault Proxy (or Agent) injects the token.
-4. `VaultHttp` sends requests with `HttpURLConnection`. It pins TLS 1.2 through the `Tls12Only` wrapper, which Java
-   8 needs, can trust a custom CA from a PEM bundle, retries transient statuses with backoff, and maps each status
+4. `VaultHttp` sends requests with `HttpURLConnection`. Its `TlsPolicy` wrapper narrows every socket to TLS 1.3/1.2
+   and to ECDHE+AEAD cipher suites (Java 8's defaults allow TLS 1.0/1.1 and CBC), caps response bodies at
+   `MAX_RESPONSE_BYTES`, can trust a custom CA from a PEM bundle, retries transient statuses with backoff, and maps each status
    code to a typed exception (`VaultAuthException`, `VaultNotFoundException`, `VaultSealedException`, and so on).
 
 These invariants span files and are easy to break:

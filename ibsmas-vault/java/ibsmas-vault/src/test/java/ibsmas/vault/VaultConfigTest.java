@@ -72,6 +72,18 @@ class VaultConfigTest {
     }
 
     @Test
+    void loopbackCheckIsNotAPrefixMatch() {
+        for (String host : new String[] {"127.0.0.1.example.com", "127.evil", "localhost.example.com"}) {
+            Map<String, String> env = new HashMap<String, String>();
+            env.put("VAULT_ADDR", "http://" + host + ":8200");
+            env.put("VAULT_ROLE_ID", "role");
+            env.put("VAULT_WRAPPED_SECRET_ID_FILE", "wrapped");
+            IllegalStateException ex = assertThrows(IllegalStateException.class, () -> VaultConfig.load(null, env), host);
+            assertTrue(ex.getMessage().contains("https"), host);
+        }
+    }
+
+    @Test
     void agentOnLoopbackHttpIsAllowed() {
         Map<String, String> env = new HashMap<String, String>();
         env.put("VAULT_ADDR", "http://127.0.0.1:8100");

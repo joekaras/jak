@@ -41,6 +41,12 @@ final class VaultHttp {
 
     private static final long MAX_BACKOFF_MS = 10_000;
 
+    /**
+     * Largest response body the client will read. Vault's responses are small (a KV secret is capped at 512 KiB
+     * by default); anything bigger means a broken or hostile endpoint, and must not become an OutOfMemoryError.
+     */
+    static final int MAX_RESPONSE_BYTES = 4 * 1024 * 1024;
+
     private final VaultConfig config;
     private final String baseUrl;
     private final SSLSocketFactory sslSocketFactory;
@@ -93,7 +99,7 @@ final class VaultHttp {
 
                 status = connection.getResponseCode();
                 InputStream in = status >= 400 ? connection.getErrorStream() : connection.getInputStream();
-                responseText = readFully(in);
+                responseText = readFully(in, method, apiPath);
             } catch (IOException e) {
                 if (retryable && attempt < config.getMaxRetries()) {
                     backoff(attempt++);
@@ -169,7 +175,8 @@ final class VaultHttp {
         }
     }
 
-    private static String readFully(InputStream in) throws IOException {
+    /** Reads at most {@link #MAX_RESPONSE_BYTES}; a longer body is a {@link VaultException}, not retried. */
+    private static String readFully(InputStream in, String method, String apiPath) throws IOException {
         if (in == null) {
             return "";
         }
@@ -178,6 +185,9 @@ final class VaultHttp {
             byte[] chunk = new byte[8192];
             int n;
             while ((n = stream.read(chunk)) != -1) {
+                if (buffer.size() + n > MAX_RESPONSE_BYTES) {
+                    throw new VaultException("Vault response to " + method + " " + apiPath + " exceeds " + MAX_RESPONSE_BYTES + " bytes.");
+                }
                 buffer.write(chunk, 0, n);
             }
             return new String(buffer.toByteArray(), StandardCharsets.UTF_8);
@@ -198,53 +208,95 @@ final class VaultHttp {
             if (i == 0) {
                 throw new IllegalStateException("No certificates found in CA bundle " + pemBundle);
             }
-            return tls12(trustStore);
+            return modernTls(trustStore);
         } catch (IOException | GeneralSecurityException e) {
             throw new IllegalStateException("Could not load CA bundle " + pemBundle, e);
         }
     }
 
     /**
-     * Trusts the JVM default trust store, pinned to TLS 1.2 like the custom-CA path.
+     * Trusts the JVM default trust store, with the same protocol and cipher policy as the custom-CA path.
      */
     private static SSLSocketFactory loadDefaultTrust() {
         try {
-            return tls12(null);
+            return modernTls(null);
         } catch (GeneralSecurityException e) {
-            throw new IllegalStateException("Could not initialise TLS 1.2", e);
+            throw new IllegalStateException("Could not initialise TLS", e);
         }
     }
 
-    /** Builds a socket factory over the given trust store (null = JVM default) that enables only TLS 1.2. */
-    private static SSLSocketFactory tls12(KeyStore trustStore) throws GeneralSecurityException {
+    /** Builds a socket factory over the given trust store (null = JVM default) under {@link TlsPolicy}. */
+    private static SSLSocketFactory modernTls(KeyStore trustStore) throws GeneralSecurityException {
         TrustManagerFactory tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
         tmf.init(trustStore);
-        SSLContext context = SSLContext.getInstance("TLSv1.2");
+        // "TLS" is the newest version the runtime has; TlsPolicy then narrows what each socket may negotiate.
+        SSLContext context = SSLContext.getInstance("TLS");
         context.init(null, tmf.getTrustManagers(), null);
-        return new Tls12Only(context.getSocketFactory());
+        return new TlsPolicy(context.getSocketFactory());
     }
 
     /**
-     * An {@code SSLContext} named "TLSv1.2" only caps the version: on Java 8 its client sockets still enable
-     * TLSv1 and TLSv1.1. This wrapper narrows every socket to TLSv1.2.
+     * Narrows every socket to TLS 1.3 and 1.2 (whichever the runtime supports; 1.3 needs Java 8u261+) and to
+     * cipher suites with forward secrecy and AEAD: the TLS 1.3 suites, and ECDHE with AES-GCM or ChaCha20.
+     * The JVM defaults would otherwise allow TLS 1.0/1.1 on Java 8, CBC suites, and static-RSA key exchange.
      */
-    static final class Tls12Only extends SSLSocketFactory {
-        private static final String[] PROTOCOLS = {"TLSv1.2"};
-        private final SSLSocketFactory delegate;
+    static final class TlsPolicy extends SSLSocketFactory {
+        private static final java.util.List<String> PROTOCOLS = java.util.Arrays.asList("TLSv1.3", "TLSv1.2");
+        private static final java.util.regex.Pattern CIPHER_SUITES = java.util.regex.Pattern.compile(
+            "TLS_(AES_(128|256)_GCM_SHA(256|384)|CHACHA20_POLY1305_SHA256"
+                + "|ECDHE_(RSA|ECDSA)_WITH_(AES_(128|256)_GCM_SHA(256|384)|CHACHA20_POLY1305_SHA256))");
 
-        Tls12Only(SSLSocketFactory delegate) {
+        private final SSLSocketFactory delegate;
+        private final String[] protocols;
+        private final String[] cipherSuites;
+
+        TlsPolicy(SSLSocketFactory delegate) {
             this.delegate = delegate;
+            this.cipherSuites = select(delegate.getSupportedCipherSuites(), CIPHER_SUITES);
+            if (cipherSuites.length == 0) {
+                throw new IllegalStateException("This JVM offers no TLS cipher suite with forward secrecy and AEAD.");
+            }
+            try (SSLSocket probe = (SSLSocket) delegate.createSocket()) {
+                this.protocols = selectProtocols(probe.getSupportedProtocols());
+            } catch (IOException e) {
+                throw new IllegalStateException("Could not inspect the JVM's TLS protocols", e);
+            }
+            if (protocols.length == 0) {
+                throw new IllegalStateException("This JVM supports neither TLS 1.3 nor TLS 1.2.");
+            }
         }
 
-        private static Socket pin(Socket socket) {
+        private static String[] selectProtocols(String[] supported) {
+            java.util.List<String> chosen = new java.util.ArrayList<String>();
+            for (String p : supported) {
+                if (PROTOCOLS.contains(p)) {
+                    chosen.add(p);
+                }
+            }
+            return chosen.toArray(new String[0]);
+        }
+
+        private static String[] select(String[] supported, java.util.regex.Pattern allowed) {
+            java.util.List<String> chosen = new java.util.ArrayList<String>();
+            for (String s : supported) {
+                if (allowed.matcher(s).matches()) {
+                    chosen.add(s);
+                }
+            }
+            return chosen.toArray(new String[0]);
+        }
+
+        private Socket pin(Socket socket) {
             if (socket instanceof SSLSocket) {
-                ((SSLSocket) socket).setEnabledProtocols(PROTOCOLS);
+                SSLSocket ssl = (SSLSocket) socket;
+                ssl.setEnabledProtocols(protocols);
+                ssl.setEnabledCipherSuites(cipherSuites);
             }
             return socket;
         }
 
-        @Override public String[] getDefaultCipherSuites() { return delegate.getDefaultCipherSuites(); }
-        @Override public String[] getSupportedCipherSuites() { return delegate.getSupportedCipherSuites(); }
+        @Override public String[] getDefaultCipherSuites() { return cipherSuites.clone(); }
+        @Override public String[] getSupportedCipherSuites() { return cipherSuites.clone(); }
         @Override public Socket createSocket() throws IOException { return pin(delegate.createSocket()); }
         @Override public Socket createSocket(Socket s, String host, int port, boolean autoClose) throws IOException {
             return pin(delegate.createSocket(s, host, port, autoClose));
